@@ -21,14 +21,7 @@ An AI-powered soccer explanation app that helps users understand soccer tactics 
 - **Backend**: Express.js (Node.js)
 - **AI Integration**: OpenAI API (optional, falls back to smart stubs)
 
-## Getting Started
-
-### Prerequisites
-
-- Node.js (v18 or higher) and npm
-- Git
-
-### Installation
+## Installation
 
 1. **Clone the repository**
    ```bash
@@ -48,7 +41,7 @@ An AI-powered soccer explanation app that helps users understand soccer tactics 
    cd ..
    ```
 
-### Running the Application
+## Running the Application
 
 You need to run both the frontend and backend servers:
 
@@ -78,27 +71,6 @@ PORT=3001
 
 **Note**: The app works without an API key using intelligent stub responses for testing.
 
-## Project Structure
-
-```
-gaffer-s-chalkboard/
-├── src/
-│   ├── components/
-│   │   ├── AICoach.tsx          # AI Coach chat interface
-│   │   ├── VideoZone.tsx        # Video player and URL input
-│   │   └── ...
-│   ├── lib/
-│   │   ├── explanationAgent.ts  # AI agent core logic
-│   │   ├── videoContext.ts     # Video context adapter
-│   │   └── videoSources.ts     # Video source abstraction
-│   └── pages/
-│       └── Index.tsx            # Main page
-├── backend/
-│   ├── server.js                # Express API server
-│   └── package.json
-└── package.json
-```
-
 ## Usage
 
 1. **Load a Video**: Paste a YouTube URL in the input field at the top
@@ -109,25 +81,10 @@ gaffer-s-chalkboard/
 3. **Choose Style**: Select your preferred explanation style from the dropdown
 4. **View Timeline**: Browse match events in the timeline below the video
 
-## Development
+## Team
 
-### Building for Production
-
-```bash
-npm run build
-```
-
-The built files will be in the `dist/` directory.
-
-### Linting
-
-```bash
-npm run lint
-```
-
-## Contributing
-
-Contributions are welcome! Please feel free to submit a Pull Request.
+- **Tanvir IA** - Frontend Development, AI Coach UI, Video Integration
+- **Ashraf Tutul** - Backend API Development
 
 ## License
 
