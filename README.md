@@ -1,73 +1,140 @@
-# Welcome to your Lovable project
+# Gaffer's Chalkboard
 
-## Project info
+An AI-powered soccer explanation app that helps users understand soccer tactics and plays using interactive video analysis and intelligent explanations.
 
-**URL**: https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID
+## Features
 
-## How can I edit this code?
+- **Video URL Input**: Paste YouTube video URLs to load and watch soccer matches
+- **AI Coach**: Interactive chat interface that explains what's happening in the video
+- **Multiple Explanation Styles**: 
+  - NFL Analogies (for American football fans)
+  - Beginner Friendly (simple explanations)
+  - Tactical (technical soccer terminology)
+- **Video Context Tracking**: Automatically tracks current video time and context
+- **Event Timeline**: Visual timeline of match events
+- **Tactics Diagrams**: Interactive diagrams explaining tactical concepts
 
-There are several ways of editing your application.
+## Tech Stack
 
-**Use Lovable**
+- **Frontend**: React + TypeScript + Vite
+- **UI Components**: shadcn/ui + Tailwind CSS
+- **Backend**: Express.js (Node.js)
+- **AI Integration**: OpenAI API (optional, falls back to smart stubs)
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID) and start prompting.
+## Getting Started
 
-Changes made via Lovable will be committed automatically to this repo.
+### Prerequisites
 
-**Use your preferred IDE**
+- Node.js (v18 or higher) and npm
+- Git
 
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
+### Installation
 
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
+1. **Clone the repository**
+   ```bash
+   git clone https://github.com/tanviria07/gaffer-s-chalkboard.git
+   cd gaffer-s-chalkboard
+   ```
 
-Follow these steps:
+2. **Install frontend dependencies**
+   ```bash
+   npm install
+   ```
 
-```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
+3. **Install backend dependencies**
+   ```bash
+   cd backend
+   npm install
+   cd ..
+   ```
 
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
+### Running the Application
 
-# Step 3: Install the necessary dependencies.
-npm i
+You need to run both the frontend and backend servers:
 
-# Step 4: Start the development server with auto-reloading and an instant preview.
+**Terminal 1 - Backend Server:**
+```bash
+cd backend
 npm run dev
 ```
+The backend will run on `http://localhost:3001`
 
-**Edit a file directly in GitHub**
+**Terminal 2 - Frontend:**
+```bash
+npm run dev
+```
+The frontend will run on `http://localhost:8080`
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+Open your browser and navigate to `http://localhost:8080`
 
-**Use GitHub Codespaces**
+### Optional: AI API Setup
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
+To use real AI explanations (instead of stub responses), create a `.env` file in the `backend` directory:
 
-## What technologies are used for this project?
+```env
+OPENAI_API_KEY=your_openai_api_key_here
+PORT=3001
+```
 
-This project is built with:
+**Note**: The app works without an API key using intelligent stub responses for testing.
 
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
+## Project Structure
 
-## How can I deploy this project?
+```
+gaffer-s-chalkboard/
+├── src/
+│   ├── components/
+│   │   ├── AICoach.tsx          # AI Coach chat interface
+│   │   ├── VideoZone.tsx        # Video player and URL input
+│   │   └── ...
+│   ├── lib/
+│   │   ├── explanationAgent.ts  # AI agent core logic
+│   │   ├── videoContext.ts     # Video context adapter
+│   │   └── videoSources.ts     # Video source abstraction
+│   └── pages/
+│       └── Index.tsx            # Main page
+├── backend/
+│   ├── server.js                # Express API server
+│   └── package.json
+└── package.json
+```
 
-Simply open [Lovable](https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID) and click on Share -> Publish.
+## Usage
 
-## Can I connect a custom domain to my Lovable project?
+1. **Load a Video**: Paste a YouTube URL in the input field at the top
+2. **Ask Questions**: Use the AI Coach panel on the right to ask questions like:
+   - "Explain what's happening right now"
+   - "Who's pressing and why?"
+   - "Summarize the last 30 seconds"
+3. **Choose Style**: Select your preferred explanation style from the dropdown
+4. **View Timeline**: Browse match events in the timeline below the video
 
-Yes, you can!
+## Development
 
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
+### Building for Production
 
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/features/custom-domain#custom-domain)
+```bash
+npm run build
+```
+
+The built files will be in the `dist/` directory.
+
+### Linting
+
+```bash
+npm run lint
+```
+
+## Contributing
+
+Contributions are welcome! Please feel free to submit a Pull Request.
+
+## License
+
+This project is open source and available under the MIT License.
+
+## Acknowledgments
+
+- Built with React, Vite, and TypeScript
+- UI components from shadcn/ui
+- Icons from Lucide React
