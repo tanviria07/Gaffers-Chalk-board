@@ -21,6 +21,52 @@ An AI-powered soccer explanation app that helps users understand soccer tactics 
 - **Backend**: Express.js (Node.js)
 - **AI Integration**: OpenAI API (optional, falls back to smart stubs)
 
+## Development Setup
+
+### Prerequisites
+- Node.js 18+
+- npm
+
+### Running Locally
+
+1. Install dependencies:
+   ```bash
+   npm install
+   cd backend && npm install && cd ..
+   ```
+
+2. (Optional) Set up API keys for real AI responses:
+   ```bash
+   cp .env.example backend/.env
+   # Edit backend/.env and add your OPENAI_API_KEY
+   ```
+
+3. Start both frontend and backend:
+   ```bash
+   # Option 1: Run both together
+   npm run dev:all
+
+   # Option 2: Run separately (in two terminals)
+   npm run backend   # Terminal 1 - starts backend on port 3001
+   npm run dev       # Terminal 2 - starts frontend on port 8080
+   ```
+
+4. Open http://localhost:8080 in your browser
+
+### API Endpoints
+
+**POST /api/explain** - Generate tactical explanation
+```bash
+curl -X POST http://localhost:3001/api/explain \
+  -H "Content-Type: application/json" \
+  -d '{"userMessage": "Explain what is happening", "videoContext": {"currentTime": 45}, "style": "NFL analogies"}'
+```
+
+**GET /health** - Health check
+```bash
+curl http://localhost:3001/health
+```
+
 ## Usage
 
 1. **Load a Video**: Paste a YouTube URL in the input field at the top
