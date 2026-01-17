@@ -1,4 +1,6 @@
+# =====================
 # Logs
+# =====================
 logs
 *.log
 npm-debug.log*
@@ -7,16 +9,35 @@ yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 
+# =====================
+# Node / Frontend
+# =====================
 node_modules
 dist
 dist-ssr
 *.local
 
-# Backend
 backend/node_modules
 backend/.env
 
-# Editor directories and files
+# =====================
+# Python / Backend (CRITICAL)
+# =====================
+agent/.venv/
+**/.venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Env files (secrets)
+agent/.env
+**/.env
+**/.env.*
+
+# =====================
+# Editor / OS
+# =====================
 .vscode/*
 !.vscode/extensions.json
 .idea
