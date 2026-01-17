@@ -46,7 +46,6 @@ const EventTimeline = ({ events, selectedEventId, onSelectEvent }: EventTimeline
 
   return (
     <div className="h-full flex flex-col min-h-0">
-      {/* Header with helper text */}
       <div className="flex items-center justify-between flex-shrink-0 mb-2">
         <div className="flex items-center gap-2">
           <Swords className="w-5 h-5 text-chalk-yellow" />
@@ -65,7 +64,6 @@ const EventTimeline = ({ events, selectedEventId, onSelectEvent }: EventTimeline
         </Tooltip>
       </div>
 
-      {/* Events list */}
       <div className="flex-1 min-h-0 overflow-y-auto space-y-1">
         {events.map((event, index) => {
           const isSelected = selectedEventId === event.id;
@@ -86,10 +84,8 @@ const EventTimeline = ({ events, selectedEventId, onSelectEvent }: EventTimeline
                   style={{ animationDelay: `${index * 50}ms` }}
                 >
                   <div className="flex items-center gap-3">
-                    {/* Event icon */}
                     <span className="text-lg">{getEventIcon(event.type)}</span>
                     
-                    {/* Minute */}
                     <span className={cn(
                       "font-chalk text-xl min-w-[40px]",
                       isSelected ? "text-chalk-yellow" : "text-chalk-white/80"
@@ -97,7 +93,6 @@ const EventTimeline = ({ events, selectedEventId, onSelectEvent }: EventTimeline
                       {event.minute}'
                     </span>
                     
-                    {/* Event title */}
                     <div className="flex items-center gap-2">
                       <span className={cn(
                         "font-body text-sm",
@@ -113,7 +108,6 @@ const EventTimeline = ({ events, selectedEventId, onSelectEvent }: EventTimeline
                     </div>
                   </div>
 
-                  {/* Arrow indicator */}
                   <ChevronRight className={cn(
                     "w-5 h-5 transition-all duration-200",
                     isSelected 

@@ -1,13 +1,11 @@
-"""
-NFL Analogy Generator service
-"""
+
 import anthropic
 import os
 from typing import Optional
 
 
 class AnalogyGenerator:
-    """Generates NFL analogies from soccer commentary"""
+    
     
     def __init__(self, api_key: Optional[str] = None):
         self.api_key = api_key or os.getenv("ANTHROPIC_API_KEY")
@@ -21,15 +19,7 @@ class AnalogyGenerator:
                 self.client = None
     
     async def generate(self, commentary: str) -> str:
-        """
-        Convert soccer commentary to NFL analogy
         
-        Args:
-            commentary: Soccer match commentary
-        
-        Returns:
-            NFL analogy string
-        """
         if not self.client:
             return self._generate_stub_analogy(commentary)
         
@@ -39,16 +29,7 @@ class AnalogyGenerator:
                 max_tokens=150,
                 messages=[{
                     "role": "user",
-                    "content": f"""You're an NFL commentator explaining soccer to American football fans.
-
-Soccer moment: {commentary}
-
-Convert this to an NFL analogy using:
-- NFL positions (QB, RB, WR, linebacker, safety, cornerback)
-- NFL plays (blitz, screen pass, play action, zone defense, man coverage)
-- NFL field terms (A-gap, B-gap, red zone, pocket, shotgun)
-
-Keep it under 30 words and make it exciting!"""
+                    "content": f
                 }]
             )
             
@@ -59,10 +40,10 @@ Keep it under 30 words and make it exciting!"""
             return self._generate_stub_analogy(commentary)
     
     def _generate_stub_analogy(self, commentary: str) -> str:
-        """Generate stub analogy when API is not available"""
+        
         import random
         
-        # Context-aware stub analogies
+
         commentary_lower = commentary.lower()
         
         if any(word in commentary_lower for word in ['press', 'pressing', 'pressure']):
@@ -77,5 +58,5 @@ Keep it under 30 words and make it exciting!"""
         if any(word in commentary_lower for word in ['attack', 'forward', 'goal']):
             return "This is like a well-designed red zone play — the offense is probing for weaknesses, creating space, and looking for the perfect moment to strike."
         
-        # Default analogy
+
         return "This play is like a well-designed offensive scheme — every player has a role, creating space and options, waiting for the defense to make a mistake."

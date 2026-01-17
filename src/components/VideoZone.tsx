@@ -11,7 +11,6 @@ interface VideoZoneProps {
   onCurrentTimeChange?: (time: number) => void;
 }
 
-// Declare YouTube IFrame API types
 declare global {
   interface Window {
     YT: {
@@ -59,7 +58,6 @@ const VideoZone = ({ currentMinute, videoUrl = '', onVideoUrlChange, onCurrentTi
   const playerContainerRef = useRef<HTMLDivElement>(null);
   const timeIntervalRef = useRef<number | null>(null);
 
-  // Load YouTube IFrame API
   useEffect(() => {
     if (window.YT) {
       setIsApiReady(true);
@@ -80,19 +78,16 @@ const VideoZone = ({ currentMinute, videoUrl = '', onVideoUrlChange, onCurrentTi
     };
   }, []);
 
-  // Initialize YouTube player when API is ready and video source changes
   useEffect(() => {
     if (!isApiReady || !videoSource || videoSource.type !== 'youtube') {
       return;
     }
 
-    // Clean up existing player
     if (playerRef.current) {
       playerRef.current.destroy();
       playerRef.current = null;
     }
 
-    // Create new player
     playerRef.current = new window.YT.Player('youtube-player', {
       videoId: videoSource.videoId,
       playerVars: {
@@ -107,7 +102,6 @@ const VideoZone = ({ currentMinute, videoUrl = '', onVideoUrlChange, onCurrentTi
         onStateChange: (event) => {
           if (event.data === window.YT.PlayerState.PLAYING) {
             setIsPlaying(true);
-            // Start time tracking
             if (timeIntervalRef.current) {
               clearInterval(timeIntervalRef.current);
             }
@@ -120,12 +114,10 @@ const VideoZone = ({ currentMinute, videoUrl = '', onVideoUrlChange, onCurrentTi
             }, 1000);
           } else {
             setIsPlaying(false);
-            // Stop time tracking when paused
             if (timeIntervalRef.current) {
               clearInterval(timeIntervalRef.current);
               timeIntervalRef.current = null;
             }
-            // Report current time when paused (user seeked)
             if (playerRef.current) {
               const time = playerRef.current.getCurrentTime();
               setCurrentTime(time);
@@ -147,7 +139,6 @@ const VideoZone = ({ currentMinute, videoUrl = '', onVideoUrlChange, onCurrentTi
     };
   }, [isApiReady, videoSource, onCurrentTimeChange]);
 
-  // Sync external videoUrl prop with internal state
   useEffect(() => {
     if (videoUrl !== inputValue) {
       setInputValue(videoUrl);
@@ -165,7 +156,6 @@ const VideoZone = ({ currentMinute, videoUrl = '', onVideoUrlChange, onCurrentTi
         setError(null);
       }
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [videoUrl]);
 
   const handleUrlChange = (url: string) => {
@@ -234,7 +224,6 @@ const VideoZone = ({ currentMinute, videoUrl = '', onVideoUrlChange, onCurrentTi
 
   return (
     <div className="h-full flex flex-col min-h-0">
-      {/* URL Input */}
       <div className="space-y-1 flex-shrink-0 mb-2">
         <div className="flex gap-2">
           <Input
@@ -268,14 +257,11 @@ const VideoZone = ({ currentMinute, videoUrl = '', onVideoUrlChange, onCurrentTi
         )}
       </div>
 
-      {/* Video container */}
       <div className="relative rounded-lg overflow-hidden chalk-border bg-black/40 flex-1 min-h-0">
         <div ref={playerContainerRef} className="w-full h-full bg-gradient-to-br from-chalk-green-light/30 to-black/50 relative">
           {videoSource && videoSource.type === 'youtube' && isApiReady ? (
-            /* YouTube player container */
             <div id="youtube-player" className="w-full h-full" />
           ) : videoSource && videoSource.type === 'unknown' ? (
-            /* Generic video iframe for non-YouTube sources */
             <iframe
               src={videoSource.url}
               className="w-full h-full"
@@ -284,11 +270,9 @@ const VideoZone = ({ currentMinute, videoUrl = '', onVideoUrlChange, onCurrentTi
               title="Video player"
             />
           ) : (
-            /* Placeholder content when no video is loaded */
             <>
               <div className="absolute inset-0 flex items-center justify-center">
                 <div className="w-full h-full bg-gradient-to-br from-emerald-900/50 to-black/70 flex items-center justify-center">
-                  {/* Soccer field indicator */}
                   <div className="relative w-3/4 h-3/4 border border-chalk-white/20 rounded">
                     <div className="absolute top-1/2 left-0 right-0 h-px bg-chalk-white/20" />
                     <div className="absolute top-1/2 left-1/2 w-16 h-16 -translate-x-1/2 -translate-y-1/2 rounded-full border border-chalk-white/20" />
@@ -299,7 +283,6 @@ const VideoZone = ({ currentMinute, videoUrl = '', onVideoUrlChange, onCurrentTi
                 </div>
               </div>
 
-              {/* Play button overlay (only show when no video) */}
               <button
                 onClick={() => setIsPlaying(!isPlaying)}
                 className="absolute inset-0 flex items-center justify-center group"
@@ -315,7 +298,6 @@ const VideoZone = ({ currentMinute, videoUrl = '', onVideoUrlChange, onCurrentTi
             </>
           )}
 
-          {/* Video controls bar (only show for placeholder, YouTube has its own controls) */}
           {(!videoSource || videoSource.type !== 'youtube') && (
             <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-3">
               <div className="flex items-center gap-3">
@@ -332,7 +314,6 @@ const VideoZone = ({ currentMinute, videoUrl = '', onVideoUrlChange, onCurrentTi
 
                 <Volume2 className="w-4 h-4 text-chalk-white/70" />
 
-                {/* Progress bar */}
                 <div className="flex-1 h-1 bg-chalk-white/20 rounded-full overflow-hidden">
                   <div
                     className="h-full bg-primary rounded-full transition-all duration-300"
@@ -340,7 +321,6 @@ const VideoZone = ({ currentMinute, videoUrl = '', onVideoUrlChange, onCurrentTi
                   />
                 </div>
 
-                {/* Timestamp */}
                 <span className="text-chalk-white text-sm font-mono">
                   {formatTime(currentMinute * 60)}
                 </span>

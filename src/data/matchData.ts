@@ -4,7 +4,7 @@ export interface MatchEvent {
   type: 'through-ball' | 'offside-trap' | 'goal' | 'yellow-card' | 'save' | 'corner';
   title: string;
   description: string;
-  videoTimestamp: number; // seconds into the video
+  videoTimestamp: number;
   explanation: {
     whatHappened: string;
     whyItMatters: string;
@@ -29,7 +29,7 @@ export const mockMatch: Match = {
   awayTeam: 'Manchester United',
   competition: 'Premier League',
   date: '2024-01-15',
-  youtubeId: 'dQw4w9WgXcQ', // placeholder
+  youtubeId: 'dQw4w9WgXcQ',
   events: [
     {
       id: 'event-1',

@@ -1,8 +1,3 @@
-/**
- * Analogy Agent API Client
- * Handles communication with the Python FastAPI backend for NFL analogy generation
- */
-
 export interface AnalogyInput {
   videoId: string;
   timestamp: number;
@@ -19,10 +14,28 @@ export interface AnalogyOutput {
 
 const API_BASE = '/api';
 
-/**
- * Generate NFL analogy for a video timestamp using Python FastAPI agent
- * Backend will extract the frame from YouTube automatically
- */
+export async function generateAnalogyFromText(commentary: string): Promise<string> {
+  try {
+    const response = await fetch(`${API_BASE}/generate-analogy-from-text`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ commentary }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`API error: ${response.status}`);
+    }
+
+    const data = await response.json();
+    return data.nflAnalogy || "This is like a well-designed offensive scheme — every player has a role, creating space and options.";
+  } catch (error) {
+    console.error('Error generating analogy from text:', error);
+    return "This is like a well-designed offensive scheme — every player has a role, creating space and options.";
+  }
+}
+
 export async function generateAnalogy(input: AnalogyInput): Promise<AnalogyOutput> {
   try {
     const response = await fetch(`${API_BASE}/analyze`, {
@@ -43,8 +56,6 @@ export async function generateAnalogy(input: AnalogyInput): Promise<AnalogyOutpu
 
     const data = await response.json();
     
-    // Map Python API response to our frontend format
-    // Note: fieldDiagram is optional now, use default if not present
     return {
       originalCommentary: data.originalCommentary || `Soccer action at ${formatTime(input.timestamp)}`,
       nflAnalogy: data.nflAnalogy || "This play is like a well-designed offensive scheme — every player has a role, creating space and options.",
@@ -55,7 +66,6 @@ export async function generateAnalogy(input: AnalogyInput): Promise<AnalogyOutpu
     };
   } catch (error) {
     console.error('Error generating analogy:', error);
-    // Return fallback response
     return {
       originalCommentary: `Soccer action at ${formatTime(input.timestamp)}`,
       nflAnalogy: "This play is like a well-designed offensive scheme — every player has a role, creating space and options.",
@@ -67,9 +77,6 @@ export async function generateAnalogy(input: AnalogyInput): Promise<AnalogyOutpu
   }
 }
 
-/**
- * Fetch all captions for a video
- */
 export async function fetchCaptions(videoId: string): Promise<{ text: string; start: number; dur: number }[]> {
   try {
     const response = await fetch(`${API_BASE}/captions/${videoId}`);
@@ -77,25 +84,24 @@ export async function fetchCaptions(videoId: string): Promise<{ text: string; st
       throw new Error(`API error: ${response.status}`);
     }
     const data = await response.json();
-    return data.captions || [];
+    const captions = (data.captions || []).map((cap: any) => ({
+      text: cap.text || '',
+      start: cap.start || 0,
+      dur: cap.duration || cap.dur || 0,
+    }));
+    return captions;
   } catch (error) {
     console.error('Error fetching captions:', error);
     return [];
   }
 }
 
-/**
- * Format timestamp as MM:SS
- */
 function formatTime(seconds: number): string {
   const mins = Math.floor(seconds / 60);
   const secs = Math.floor(seconds % 60);
   return `${mins}:${secs.toString().padStart(2, '0')}`;
 }
 
-/**
- * Text-to-speech for NFL commentary
- */
 export function speakText(text: string, options?: { rate?: number; pitch?: number }): Promise<void> {
   return new Promise((resolve, reject) => {
     if (!('speechSynthesis' in window)) {
@@ -103,7 +109,6 @@ export function speakText(text: string, options?: { rate?: number; pitch?: numbe
       return;
     }
 
-    // Cancel any ongoing speech
     window.speechSynthesis.cancel();
 
     const utterance = new SpeechSynthesisUtterance(text);
@@ -111,7 +116,6 @@ export function speakText(text: string, options?: { rate?: number; pitch?: numbe
     utterance.pitch = options?.pitch || 1.0;
     utterance.lang = 'en-US';
 
-    // Try to find a good voice (prefer American English)
     const voices = window.speechSynthesis.getVoices();
     const preferredVoice = voices.find(
       v => v.lang === 'en-US' && (v.name.includes('Male') || v.name.includes('David') || v.name.includes('Alex'))
@@ -128,9 +132,6 @@ export function speakText(text: string, options?: { rate?: number; pitch?: numbe
   });
 }
 
-/**
- * Stop any ongoing speech
- */
 export function stopSpeaking(): void {
   if ('speechSynthesis' in window) {
     window.speechSynthesis.cancel();

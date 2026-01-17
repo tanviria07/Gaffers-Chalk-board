@@ -68,7 +68,6 @@ const ExplanationPanel = ({ event }: ExplanationPanelProps) => {
         exit={{ opacity: 0, x: -20 }}
         transition={{ duration: 0.3 }}
       >
-        {/* What Just Happened */}
         <motion.section
           custom={0}
           variants={sectionVariants}
@@ -88,7 +87,6 @@ const ExplanationPanel = ({ event }: ExplanationPanelProps) => {
           </p>
         </motion.section>
 
-        {/* Why It Matters */}
         <motion.section
           custom={1}
           variants={sectionVariants}
@@ -108,7 +106,6 @@ const ExplanationPanel = ({ event }: ExplanationPanelProps) => {
           </p>
         </motion.section>
 
-        {/* NFL Analogy - Highlighted section */}
         <motion.section 
           className="relative"
           custom={2}

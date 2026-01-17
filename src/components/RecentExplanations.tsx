@@ -14,7 +14,6 @@ const RecentExplanations = forwardRef<HTMLDivElement>((props, ref) => {
 
   return (
     <div ref={ref} className="relative" {...props}>
-      {/* Toggle button */}
       <Tooltip>
         <TooltipTrigger asChild>
           <button
@@ -37,7 +36,6 @@ const RecentExplanations = forwardRef<HTMLDivElement>((props, ref) => {
         </TooltipContent>
       </Tooltip>
 
-      {/* Dropdown panel */}
       <AnimatePresence>
         {isOpen && (
           <motion.div 

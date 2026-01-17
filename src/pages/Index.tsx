@@ -3,8 +3,11 @@ import Header from '@/components/Header';
 import VideoZone from '@/components/VideoZone';
 import TacticsDiagram from '@/components/TacticsDiagram';
 import AudioButton from '@/components/AudioButton';
+import ChatBot from '@/components/ChatBot';
+import LiveCommentary from '@/components/LiveCommentary';
 import { videoSourceManager } from '@/lib/videoSources';
-import { generateAnalogy, AnalogyOutput, speakText, stopSpeaking } from '@/lib/analogyAgent';
+import { fetchVideoMetadata } from '@/lib/chatAgent';
+import { generateAnalogy, generateAnalogyFromText, AnalogyOutput, fetchCaptions, speakText, stopSpeaking } from '@/lib/analogyAgent';
 import { MatchEvent } from '@/data/matchData';
 
 interface AnalysisState {
@@ -19,8 +22,12 @@ const Index = () => {
   const [videoUrl, setVideoUrl] = useState<string>('');
   const [videoId, setVideoId] = useState<string | null>(null);
   const [currentTime, setCurrentTime] = useState<number>(0);
+  const [isVideoPlaying, setIsVideoPlaying] = useState<boolean>(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
+  const [videoMetadata, setVideoMetadata] = useState<any>(null);
   const lastFetchedTime = useRef<number>(-1);
+  const [captions, setCaptions] = useState<{ text: string; start: number; dur: number }[]>([]);
+  const lastCaptionText = useRef<string>('');
 
   const [analysis, setAnalysis] = useState<AnalysisState>({
     commentary: "Paste a video URL to see real-time soccer analysis with NFL analogies.",
@@ -30,16 +37,13 @@ const Index = () => {
     timestamp: 0,
   });
 
-  // Extract video ID/URL when URL changes
   useEffect(() => {
     if (videoUrl) {
       const parsed = videoSourceManager.parseUrl(videoUrl);
       if (parsed) {
-        // For YouTube, use video ID; for others, use full URL
         if (parsed.type === 'youtube') {
           setVideoId(parsed.videoId);
         } else {
-          // For generic videos, use the full URL
           setVideoId(parsed.url);
         }
       } else {
@@ -50,46 +54,136 @@ const Index = () => {
     }
   }, [videoUrl]);
 
-  // Fetch analogy when timestamp changes (debounced)
-  const fetchAnalogy = useCallback(async (timestamp: number) => {
-    if (!videoId) return;
-
-    // Only fetch if we've moved more than 10 seconds from last fetch (reduced frequency)
-    const roundedTime = Math.floor(timestamp / 10) * 10;
-    if (Math.abs(roundedTime - lastFetchedTime.current) < 10) {
-      return;
-    }
-
-    lastFetchedTime.current = roundedTime;
-    setAnalysis(prev => ({ ...prev, isLoading: true }));
-
-    try {
-      // Backend will extract captions from video automatically
-      const result: AnalogyOutput = await generateAnalogy({
-        videoId,
-        timestamp,
+  useEffect(() => {
+    if (videoId) {
+      fetchVideoMetadata(videoId).then(metadata => {
+        if (metadata) {
+          setVideoMetadata(metadata);
+          console.log('Video metadata loaded:', metadata.title);
+        }
       });
-
-      setAnalysis({
-        commentary: result.originalCommentary,
-        nflAnalogy: result.nflAnalogy,
-        fieldDiagram: result.fieldDiagram,
-        isLoading: false,
-        timestamp: result.timestamp,
+      
+      console.log('Pre-loading captions for live analysis...');
+      fetchCaptions(videoId).then(loadedCaptions => {
+        setCaptions(loadedCaptions);
+        console.log(`✓ Loaded ${loadedCaptions.length} captions for live analysis`);
+        if (loadedCaptions.length === 0) {
+          console.warn('No captions available - live analysis will use vision API');
+        }
+      }).catch(error => {
+        console.error('Error pre-loading captions:', error);
+        setCaptions([]);
       });
-    } catch (error) {
-      console.error('Error fetching analogy:', error);
-      setAnalysis(prev => ({ ...prev, isLoading: false }));
+    } else {
+      setVideoMetadata(null);
+      setCaptions([]);
     }
   }, [videoId]);
 
-  // Handle time updates from video
+  const findCaptionAtTimestamp = useCallback((timestamp: number): string | null => {
+    if (captions.length === 0) {
+      console.log(`[LIVE] No captions available at ${timestamp}s`);
+      return null;
+    }
+    
+    for (const caption of captions) {
+      const start = caption.start;
+      const end = caption.start + caption.dur;
+      if (timestamp >= start && timestamp < end) {
+        console.log(`[LIVE] Found caption at ${timestamp}s: "${caption.text.substring(0, 50)}..." (${start}s - ${end}s)`);
+        return caption.text;
+      }
+    }
+    
+    let nearest = null;
+    let minDiff = 2.0;
+    for (const caption of captions) {
+      const start = caption.start;
+      const diff = Math.abs(timestamp - start);
+      if (diff < minDiff) {
+        minDiff = diff;
+        nearest = caption;
+      }
+    }
+    
+    if (nearest) {
+      console.log(`[LIVE] Using nearest caption at ${timestamp}s: "${nearest.text.substring(0, 50)}..." (${nearest.start}s)`);
+      return nearest.text;
+    }
+    
+    console.log(`[LIVE] No caption found at ${timestamp}s`);
+    return null;
+  }, [captions]);
+
+  const updateLiveAnalysis = useCallback(async (timestamp: number) => {
+    if (!videoId) return;
+
+    setAnalysis(prev => ({ ...prev, timestamp }));
+
+    const captionText = findCaptionAtTimestamp(timestamp);
+    
+    if (captionText) {
+      setAnalysis(prev => ({ ...prev, commentary: captionText }));
+      
+      if (captionText !== lastCaptionText.current) {
+        lastCaptionText.current = captionText;
+        setAnalysis(prev => ({ ...prev, isLoading: true }));
+        
+        try {
+          const nflAnalogy = await generateAnalogyFromText(captionText);
+          setAnalysis(prev => ({
+            ...prev,
+            nflAnalogy,
+            isLoading: false,
+          }));
+        } catch (error) {
+          console.error('Error generating NFL analogy:', error);
+          setAnalysis(prev => ({ ...prev, isLoading: false }));
+        }
+      }
+    } else if (captions.length === 0) {
+      const roundedTime = Math.floor(timestamp / 10) * 10;
+      if (Math.abs(roundedTime - lastFetchedTime.current) < 10) {
+        return;
+      }
+      
+      lastFetchedTime.current = roundedTime;
+      setAnalysis(prev => ({ ...prev, isLoading: true }));
+      
+      try {
+        const result: AnalogyOutput = await generateAnalogy({
+          videoId,
+          timestamp,
+        });
+        
+        setAnalysis(prev => ({
+          ...prev,
+          commentary: result.originalCommentary,
+          nflAnalogy: result.nflAnalogy,
+          fieldDiagram: result.fieldDiagram,
+          isLoading: false,
+          timestamp: result.timestamp,
+        }));
+      } catch (error) {
+        console.error('Error fetching analogy:', error);
+        setAnalysis(prev => ({ ...prev, isLoading: false }));
+      }
+    }
+  }, [videoId, captions, findCaptionAtTimestamp]);
+
   const handleTimeChange = useCallback((time: number) => {
     setCurrentTime(time);
-    fetchAnalogy(time);
-  }, [fetchAnalogy]);
+    updateLiveAnalysis(time);
+  }, [updateLiveAnalysis]);
 
-  // Handle audio playback
+  useEffect(() => {
+    const checkPlaying = () => {
+      const wasPlaying = isVideoPlaying;
+      setIsVideoPlaying(videoId !== null && currentTime > 0);
+    };
+    checkPlaying();
+  }, [currentTime, videoId]);
+
   const handleAudioClick = async () => {
     if (isSpeaking) {
       stopSpeaking();
@@ -99,7 +193,6 @@ const Index = () => {
 
     setIsSpeaking(true);
     try {
-      // Speak both commentary and analogy
       const fullText = `${analysis.commentary}. And here's the NFL comparison: ${analysis.nflAnalogy}`;
       await speakText(fullText, { rate: 0.95, pitch: 1.0 });
     } catch (error) {
@@ -120,9 +213,7 @@ const Index = () => {
   };
 
   const formatTime = (seconds: number) => {
-    const mins = Math.floor(seconds / 60);
-    const secs = Math.floor(seconds % 60);
-    return `${mins}:${secs.toString().padStart(2, '0')}`;
+    return `${Math.floor(seconds)}s`;
   };
 
   return (
@@ -130,7 +221,6 @@ const Index = () => {
       <Header />
 
       <main className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-10 gap-4 p-4 lg:p-6">
-        {/* Left column - Video (70%) */}
         <div className="lg:col-span-7 flex flex-col min-h-0">
           <VideoZone
             currentMinute={Math.floor(currentTime / 60)}
@@ -140,9 +230,7 @@ const Index = () => {
           />
         </div>
 
-        {/* Right column - Explanations (30%) */}
         <div className="lg:col-span-3 flex flex-col min-h-0 gap-3">
-          {/* Timestamp indicator */}
           {videoId && (
             <div className="text-xs text-chalk-white/50 font-body flex items-center gap-2">
               <span className="w-2 h-2 rounded-full bg-chalk-green animate-pulse" />
@@ -151,7 +239,13 @@ const Index = () => {
             </div>
           )}
 
-          {/* Original Commentary */}
+          <LiveCommentary
+            videoId={videoId}
+            currentTime={currentTime}
+            isPlaying={isVideoPlaying}
+            updateInterval={2.0}
+          />
+
           <div className="bg-card/50 rounded-lg p-3 chalk-border">
             <h3 className="font-chalk text-base text-chalk-yellow mb-1">What's Happening</h3>
             <p className={`text-chalk-white/90 font-body text-sm leading-snug ${analysis.isLoading ? 'opacity-50' : ''}`}>
@@ -159,7 +253,6 @@ const Index = () => {
             </p>
           </div>
 
-          {/* NFL Analogy */}
           <div className="bg-gradient-to-r from-chalk-yellow/10 to-chalk-yellow/5 rounded-lg p-3 border border-chalk-yellow/30">
             <div className="flex items-center gap-2 mb-1">
               <span className="text-base">🏈</span>
@@ -170,14 +263,24 @@ const Index = () => {
             </p>
           </div>
 
-          {/* Compact Field Diagram */}
           <div className="flex-shrink-0">
             <TacticsDiagram diagramType={analysis.fieldDiagram} />
           </div>
 
-          {/* Listen Like an NFL Commentator */}
           <div className="flex-shrink-0 mt-auto">
             <AudioButton onClick={handleAudioClick} isSpeaking={isSpeaking} />
+          </div>
+
+          <div className="flex-shrink-0">
+            <ChatBot 
+              videoId={videoId} 
+              currentTime={currentTime}
+              context={{
+                commentary: analysis.commentary,
+                nflAnalogy: analysis.nflAnalogy,
+              }}
+              videoMetadata={videoMetadata}
+            />
           </div>
         </div>
       </main>

@@ -1,10 +1,3 @@
-/**
- * Explanation Agent Core
- * 
- * Provides the interface for generating AI-powered explanations
- * of soccer video content.
- */
-
 import { VideoContext } from './videoContext';
 
 export type ExplanationStyle = 'NFL analogies' | 'Beginner friendly' | 'Tactical';
@@ -17,16 +10,10 @@ export interface AgentInput {
 
 export interface AgentOutput {
   responseText: string;
-  timestampUsed: number; // seconds
-  tags?: string[]; // e.g., ["pressing", "counter", "set-piece"]
+  timestampUsed: number;
+  tags?: string[];
 }
 
-/**
- * Generate an explanation using the AI agent
- * 
- * This function calls the backend API to generate explanations.
- * Falls back to stub responses if API is unavailable.
- */
 export async function generateExplanation(input: AgentInput): Promise<AgentOutput> {
   try {
     const response = await fetch('/api/explain', {
@@ -44,22 +31,16 @@ export async function generateExplanation(input: AgentInput): Promise<AgentOutpu
     const data = await response.json();
     return data;
   } catch (error) {
-    // Silently fall back to stub - this is expected when backend isn't running
     return generateStubExplanation(input);
   }
 }
 
-/**
- * Generate a stub explanation when API is unavailable
- * Uses templates based on the user's message and style
- */
 function generateStubExplanation(input: AgentInput): AgentOutput {
   const { userMessage, videoContext, style } = input;
   const currentTime = videoContext?.currentTime || 0;
   const minutes = Math.floor(currentTime / 60);
   const seconds = Math.floor(currentTime % 60);
 
-  // Extract keywords from user message
   const lowerMessage = userMessage.toLowerCase();
   const tags: string[] = [];
 
@@ -79,7 +60,6 @@ function generateStubExplanation(input: AgentInput): AgentOutput {
     tags.push('defensive');
   }
 
-  // Generate response based on style
   let responseText = '';
 
   if (style === 'NFL analogies') {
@@ -103,7 +83,6 @@ function generateStubExplanation(input: AgentInput): AgentOutput {
       responseText = `At ${minutes}:${seconds.toString().padStart(2, '0')}, we're watching how the team with the ball is trying to break down the defense. They're passing, moving, and looking for gaps. The defense is trying to stay compact and prevent any clear chances. It's all about patience and finding the right moment to attack.`;
     }
   } else {
-    // Tactical style
     if (lowerMessage.includes('press') || lowerMessage.includes('pressing')) {
       responseText = `At ${minutes}:${seconds.toString().padStart(2, '0')}, we're seeing a **coordinated press**. The front line triggers the press, with midfielders stepping up to cut passing lanes. The key is the **trigger moment** — when the ball goes to a specific player or area, the press activates. The spacing between pressing players is crucial; too wide and there are gaps, too narrow and the press can be bypassed easily.`;
     } else if (lowerMessage.includes('counter') || lowerMessage.includes('counter-attack')) {

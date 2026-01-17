@@ -1,10 +1,3 @@
-/**
- * Express Server for Explanation Agent API
- *
- * MVP implementation - STUB-FIRST by default (zero API cost)
- * Set AI_PROVIDER=openai or AI_PROVIDER=claude to use paid APIs
- */
-
 import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
@@ -15,34 +8,24 @@ dotenv.config();
 const app = express();
 const PORT = process.env.PORT || 3001;
 
-// AI_PROVIDER: "stub" (default) | "openai" | "claude"
 const AI_PROVIDER = (process.env.AI_PROVIDER || 'stub').toLowerCase();
 
-// In-memory cache for captions and generated analogies
-const captionsCache = new Map(); // videoId -> captions array
-const analogyCache = new Map();  // `${videoId}-${timestamp}` -> analogy result
+const captionsCache = new Map();
+const analogyCache = new Map();
 
 app.use(cors());
 app.use(express.json());
 
-/**
- * Generate explanation using configured provider
- */
 async function generateExplanation(userMessage, videoContext, style) {
-  // Default to stub - only use paid APIs when explicitly enabled
   if (AI_PROVIDER === 'openai') {
     return generateWithOpenAI(userMessage, videoContext, style);
   }
   if (AI_PROVIDER === 'claude') {
     return generateWithClaude(userMessage, videoContext, style);
   }
-  // Default: stub (free, fast, predictable)
   return generateStubResponse(userMessage, videoContext, style);
 }
 
-/**
- * OpenAI provider (only used when AI_PROVIDER=openai)
- */
 async function generateWithOpenAI(userMessage, videoContext, style) {
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) {
@@ -83,9 +66,6 @@ async function generateWithOpenAI(userMessage, videoContext, style) {
   }
 }
 
-/**
- * Claude/Anthropic provider (only used when AI_PROVIDER=claude)
- */
 async function generateWithClaude(userMessage, videoContext, style) {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) {
@@ -124,9 +104,6 @@ async function generateWithClaude(userMessage, videoContext, style) {
   }
 }
 
-/**
- * Build system prompt for AI providers
- */
 function buildSystemPrompt(videoContext, style) {
   return `You are a soccer analyst explaining tactics and plays. The user is watching a soccer video.
 Current video time: ${videoContext?.currentTime || 0} seconds.
@@ -140,9 +117,6 @@ Style: ${style}
 Provide concise, insightful explanations.`;
 }
 
-/**
- * StubAIProvider - Free, fast, predictable responses for MVP demos
- */
 function generateStubResponse(userMessage, videoContext, style) {
   const currentTime = videoContext?.currentTime || 0;
   const minutes = Math.floor(currentTime / 60);
@@ -150,11 +124,9 @@ function generateStubResponse(userMessage, videoContext, style) {
   const timestamp = `${minutes}:${seconds.toString().padStart(2, '0')}`;
   const lowerMessage = userMessage.toLowerCase();
 
-  // Detect topic from user message
   const topic = detectTopic(lowerMessage);
   const tags = topic.tags;
 
-  // Select response based on style and topic
   let responseText = '';
 
   if (style === 'NFL analogies') {
@@ -165,7 +137,6 @@ function generateStubResponse(userMessage, videoContext, style) {
     responseText = TACTICAL_RESPONSES[topic.key] || TACTICAL_RESPONSES.default;
   }
 
-  // Insert timestamp
   responseText = responseText.replace('{timestamp}', timestamp);
 
   return {
@@ -175,9 +146,6 @@ function generateStubResponse(userMessage, videoContext, style) {
   };
 }
 
-/**
- * Detect topic from user message
- */
 function detectTopic(message) {
   if (message.includes('press') || message.includes('pressing')) {
     return { key: 'pressing', tags: ['pressing'] };
@@ -203,7 +171,6 @@ function detectTopic(message) {
   return { key: 'default', tags: [] };
 }
 
-// NFL-style analogy responses
 const NFL_RESPONSES = {
   pressing: `At {timestamp}, the team is running a **high press** — think of it like an all-out blitz in football. They're sending players forward to force a quick decision. If the opponent breaks the press, it's like a QB escaping the pocket with open field ahead.`,
   counter: `At {timestamp}, this is a classic **counter-attack** — like a pick-six! The team just won the ball and is sprinting upfield before the defense can reset. Speed and decision-making are everything here.`,
@@ -215,7 +182,6 @@ const NFL_RESPONSES = {
   default: `At {timestamp}, we're seeing a tactical sequence unfold. Think of it like a well-designed play — every player has a role. The team with the ball is probing for weaknesses, while the defense is reading and reacting.`,
 };
 
-// Beginner-friendly responses
 const BEGINNER_RESPONSES = {
   pressing: `At {timestamp}, the defending team is **pressing** — they're running toward the player with the ball to try to win it back quickly. It's aggressive but risky; if they don't win the ball, they leave space behind.`,
   counter: `At {timestamp}, this is a **counter-attack**! One team just lost the ball, and now the other team is racing forward while the defense is out of position. It's all about speed right now.`,
@@ -227,7 +193,6 @@ const BEGINNER_RESPONSES = {
   default: `At {timestamp}, the team with the ball is trying to create a chance. They're passing, moving, and looking for gaps. The defense is organized and trying to block any clear opportunities.`,
 };
 
-// Tactical responses
 const TACTICAL_RESPONSES = {
   pressing: `At {timestamp}, we're seeing a **coordinated press** with clear trigger points. The front line initiates when the ball goes to a specific zone, midfielders step up to cut passing lanes. The defensive line pushes high to compress space — classic gegenpressing principles.`,
   counter: `At {timestamp}, the team is executing a **vertical transition**. Upon winning possession, they immediately look for the forward pass into space. Notice the wide players stretching the recovering defensive line — this is transition football at its best.`,
@@ -239,9 +204,6 @@ const TACTICAL_RESPONSES = {
   default: `At {timestamp}, we're in a **phase of play** transition. The team in possession is probing the defensive block, looking for gaps between the lines. The key battle is in the half-spaces — the channels between the center and the flanks.`,
 };
 
-/**
- * Extract tags from response text
- */
 function extractTags(text) {
   const tagKeywords = {
     pressing: ['press', 'pressing', 'high press', 'counter-press'],
@@ -263,10 +225,6 @@ function extractTags(text) {
   return foundTags;
 }
 
-/**
- * POST /api/explain
- * Generate explanation for a video moment
- */
 app.post('/api/explain', async (req, res) => {
   try {
     const { userMessage, videoContext, style } = req.body;
@@ -283,11 +241,7 @@ app.post('/api/explain', async (req, res) => {
   }
 });
 
-/**
- * Fetch and cache YouTube captions
- */
 async function fetchCaptions(videoId) {
-  // Check cache first
   if (captionsCache.has(videoId)) {
     return captionsCache.get(videoId);
   }
@@ -301,20 +255,15 @@ async function fetchCaptions(videoId) {
     return captions;
   } catch (error) {
     console.error('Error fetching captions:', error.message);
-    // Return empty array if captions not available
     return [];
   }
 }
 
-/**
- * Get caption text at a specific timestamp
- */
 function getCaptionAtTimestamp(captions, timestamp) {
   if (!captions || captions.length === 0) {
     return null;
   }
 
-  // Find caption that contains this timestamp (with 2 second buffer)
   const caption = captions.find(cap => {
     const start = parseFloat(cap.start);
     const duration = parseFloat(cap.dur) || 2;
@@ -325,7 +274,6 @@ function getCaptionAtTimestamp(captions, timestamp) {
     return caption.text;
   }
 
-  // Find nearest caption within 5 seconds
   let nearest = null;
   let nearestDiff = Infinity;
   for (const cap of captions) {
@@ -340,9 +288,6 @@ function getCaptionAtTimestamp(captions, timestamp) {
   return nearest ? nearest.text : null;
 }
 
-/**
- * Generate NFL analogy from soccer commentary using Claude
- */
 async function generateNFLAnalogy(commentary, videoContext) {
   const apiKey = process.env.ANTHROPIC_API_KEY;
 
@@ -362,7 +307,6 @@ Instructions:
 Respond with ONLY the NFL analogy, no preamble.`;
 
   if (!apiKey) {
-    // Stub response when no API key
     return generateStubNFLAnalogy(commentary);
   }
 
@@ -393,9 +337,6 @@ Respond with ONLY the NFL analogy, no preamble.`;
   }
 }
 
-/**
- * Stub NFL analogy generator (when no API key)
- */
 function generateStubNFLAnalogy(commentary) {
   const lowerCommentary = commentary.toLowerCase();
 
@@ -421,9 +362,6 @@ function generateStubNFLAnalogy(commentary) {
   return "This play is like a well-designed offensive scheme — every player has a role, creating space and options. The team with the ball is probing for weaknesses while the defense reads and reacts.";
 }
 
-/**
- * Determine field diagram type based on commentary
- */
 function determineDiagramType(commentary) {
   const lowerCommentary = commentary.toLowerCase();
 
@@ -439,10 +377,6 @@ function determineDiagramType(commentary) {
   return 'defensive';
 }
 
-/**
- * POST /api/generate-analogy
- * Generate NFL analogy for a video timestamp
- */
 app.post('/api/generate-analogy', async (req, res) => {
   try {
     const { videoId, timestamp, caption: providedCaption } = req.body;
@@ -452,27 +386,23 @@ app.post('/api/generate-analogy', async (req, res) => {
     }
 
     const ts = parseFloat(timestamp) || 0;
-    const cacheKey = `${videoId}-${Math.floor(ts / 5) * 5}`; // Round to 5-second buckets
+    const cacheKey = `${videoId}-${Math.floor(ts / 5) * 5}`;
 
-    // Check analogy cache
     if (analogyCache.has(cacheKey)) {
       console.log(`Cache hit for ${cacheKey}`);
       return res.json(analogyCache.get(cacheKey));
     }
 
-    // Get caption - use provided or fetch from YouTube
     let commentary = providedCaption;
     if (!commentary) {
       const captions = await fetchCaptions(videoId);
       commentary = getCaptionAtTimestamp(captions, ts);
     }
 
-    // If no caption available, use a generic description
     if (!commentary) {
       commentary = `Soccer action at ${Math.floor(ts / 60)}:${Math.floor(ts % 60).toString().padStart(2, '0')}`;
     }
 
-    // Generate NFL analogy
     const nflAnalogy = await generateNFLAnalogy(commentary, { videoId, timestamp: ts });
     const fieldDiagram = determineDiagramType(commentary);
 
@@ -485,7 +415,6 @@ app.post('/api/generate-analogy', async (req, res) => {
       cached: false,
     };
 
-    // Cache the result
     analogyCache.set(cacheKey, { ...result, cached: true });
 
     res.json(result);
@@ -495,10 +424,6 @@ app.post('/api/generate-analogy', async (req, res) => {
   }
 });
 
-/**
- * GET /api/captions/:videoId
- * Fetch captions for a YouTube video
- */
 app.get('/api/captions/:videoId', async (req, res) => {
   try {
     const { videoId } = req.params;
@@ -510,9 +435,6 @@ app.get('/api/captions/:videoId', async (req, res) => {
   }
 });
 
-/**
- * Health check endpoint
- */
 app.get('/health', (req, res) => {
   res.json({
     status: 'ok',

@@ -10,7 +10,6 @@ const Header = () => {
     <header className="bg-wood-frame py-3 px-4 md:px-6 border-b-4 border-chalk-wood">
       <div className="max-w-7xl mx-auto flex items-center justify-between gap-4">
         <div className="flex items-center gap-3 md:gap-4">
-          {/* Logo */}
           <div className="w-12 h-12 md:w-14 md:h-14 rounded-full border-2 border-chalk-white/60 flex items-center justify-center bg-chalk-green-light/50 shrink-0">
             <svg viewBox="0 0 40 40" className="w-8 h-8 md:w-10 md:h-10">
               <rect x="5" y="8" width="30" height="24" rx="2" fill="none" stroke="hsl(45 30% 90%)" strokeWidth="1.5" />
@@ -23,7 +22,6 @@ const Header = () => {
             </svg>
           </div>
           
-          {/* Title */}
           <div className="min-w-0">
             <h1 className="font-chalk text-2xl md:text-4xl text-chalk tracking-wide truncate">
               Gaffer's Chalkboard
@@ -34,7 +32,6 @@ const Header = () => {
           </div>
         </div>
 
-        {/* Right side controls */}
         <div className="flex items-center gap-2 md:gap-3 shrink-0">
           <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-full bg-chalk-green-light/50 border border-chalk-white/20">
             <span className="w-2 h-2 rounded-full bg-primary animate-pulse-glow" />
