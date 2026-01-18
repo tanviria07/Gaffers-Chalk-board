@@ -225,8 +225,7 @@ class VisionAnalyzer:
 
             compressed = compress_image(base64_image, max_size=1024, quality=85)
             
-
-            prompt = 
+            prompt = "Analyze this soccer frame. Describe the key action happening: player positions, ball location, and what's occurring. Be concise, under 20 words."
             
             if context:
                 prompt = f"CONTEXT: {context}\n\n{prompt}"
@@ -315,7 +314,7 @@ class VisionAnalyzer:
         try:
             compressed = compress_image(base64_image, max_size=384, quality=50)
             
-            prompt = 
+            prompt = "Analyze this soccer frame. Describe the key action happening: player positions, ball location, and what's occurring. Be concise, under 20 words."
             
             if context:
                 prompt = f"CONTEXT: {context}\n\n{prompt}"

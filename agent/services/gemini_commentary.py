@@ -34,7 +34,24 @@ class GeminiCommentaryEnhancer:
             return self._enhance_stub(raw_action)
         
         try:
-            prompt = f
+            prompt = f"""You are a professional soccer commentator. Your task is to take raw soccer action text and turn it into an engaging, broadcast-style commentary line.
+            
+Raw Action: "{raw_action}"
+Style: {style}
+Detail Level: {detail_level}
+
+Instructions:
+- Improve phrasing and rhythm.
+- Use appropriate soccer vocabulary.
+- Keep it concise, typically one sentence.
+- Do NOT just repeat the raw action. Elaborate slightly.
+- If the raw action is vague, make it sound exciting.
+- Example: "Player shoots" -> "A thunderous strike towards goal!"
+- Example: "Ball passed" -> "Intricate passing play in the midfield."
+- Example: "Goal" -> "GOAL! What a finish! The crowd erupts!"
+
+Enhanced Commentary:
+"""
 
             loop = asyncio.get_event_loop()
             response = await loop.run_in_executor(

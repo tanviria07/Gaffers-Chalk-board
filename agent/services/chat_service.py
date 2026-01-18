@@ -135,19 +135,16 @@ class ChatService:
         
         print(f"[CHAT] Calling Azure OpenAI at {self.chat_endpoint}")
         
-
-        system_prompt = 
-
+        system_prompt = "You are a knowledgeable soccer analyst helping users understand soccer tactics and plays in videos. Provide clear, concise explanations using soccer terminology. If asked about NFL analogies, use American football comparisons. Be helpful and specific about what's happening in the video."
 
         video_title = video_metadata.get('title', '') if video_metadata else ''
         video_description = video_metadata.get('description', '') if video_metadata else ''
         
-
         minutes = int(current_time // 60)
         seconds = int(current_time % 60)
         timestamp_str = f"{minutes}:{seconds:02d}"
         
-        user_prompt = f
+        user_prompt = f"USER QUESTION: {user_message}\n\nCURRENT VIDEO TIME: {timestamp_str}\n\n"
         
 
         if video_metadata:

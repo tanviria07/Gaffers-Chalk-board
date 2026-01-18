@@ -29,7 +29,7 @@ class AnalogyGenerator:
                 max_tokens=150,
                 messages=[{
                     "role": "user",
-                    "content": f
+                    "content": f"You are a sports analyst who explains soccer plays using NFL analogies for American football fans. Convert this soccer commentary into an NFL analogy that American football fans would understand:\n\n\"{commentary}\"\n\nInstructions:\n- Use NFL terminology and concepts\n- Compare soccer positions to NFL positions (e.g., striker = receiver making a catch, midfielder = quarterback, defender = linebacker)\n- Keep it concise (2-3 sentences max)\n- Make it engaging and easy to understand\n- Focus on the tactical parallel between the sports\n\nRespond with ONLY the NFL analogy, no preamble."
                 }]
             )
             

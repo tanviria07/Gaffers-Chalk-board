@@ -34,7 +34,7 @@ class GeminiVisionAnalyzer:
             return self._generate_stub_action()
         
         try:
-            prompt = 
+            prompt = "Describe the key soccer action in these frames. Be concise, under 15 words."
 
             if len(frames) > 1:
                 images = []

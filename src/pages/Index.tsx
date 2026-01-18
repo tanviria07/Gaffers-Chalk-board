@@ -8,6 +8,7 @@ import LiveCommentary from '@/components/LiveCommentary';
 import { videoSourceManager } from '@/lib/videoSources';
 import { fetchVideoMetadata } from '@/lib/chatAgent';
 import { generateAnalogy, generateAnalogyFromText, AnalogyOutput, fetchCaptions, speakText, stopSpeaking } from '@/lib/analogyAgent';
+import { getLiveCommentary } from '@/lib/commentaryAgent';
 import { MatchEvent } from '@/data/matchData';
 
 interface AnalysisState {
@@ -141,7 +142,7 @@ const Index = () => {
           setAnalysis(prev => ({ ...prev, isLoading: false }));
         }
       }
-    } else if (captions.length === 0) {
+    } else {
       const roundedTime = Math.floor(timestamp / 10) * 10;
       if (Math.abs(roundedTime - lastFetchedTime.current) < 10) {
         return;
@@ -151,21 +152,47 @@ const Index = () => {
       setAnalysis(prev => ({ ...prev, isLoading: true }));
       
       try {
-        const result: AnalogyOutput = await generateAnalogy({
+        const liveCommentaryResult = await getLiveCommentary({
           videoId,
           timestamp,
+          windowSize: 5.0,
         });
         
-        setAnalysis(prev => ({
-          ...prev,
-          commentary: result.originalCommentary,
-          nflAnalogy: result.nflAnalogy,
-          fieldDiagram: result.fieldDiagram,
-          isLoading: false,
-          timestamp: result.timestamp,
-        }));
+        if (liveCommentaryResult.commentary && !liveCommentaryResult.skipped) {
+          setAnalysis(prev => ({
+            ...prev,
+            commentary: liveCommentaryResult.commentary || prev.commentary,
+            isLoading: false,
+          }));
+          
+          try {
+            const nflAnalogy = await generateAnalogyFromText(liveCommentaryResult.commentary);
+            setAnalysis(prev => ({
+              ...prev,
+              nflAnalogy,
+            }));
+          } catch (error) {
+            console.error('Error generating NFL analogy from live commentary:', error);
+          }
+        } else if (captions.length === 0) {
+          const result: AnalogyOutput = await generateAnalogy({
+            videoId,
+            timestamp,
+          });
+          
+          setAnalysis(prev => ({
+            ...prev,
+            commentary: result.originalCommentary,
+            nflAnalogy: result.nflAnalogy,
+            fieldDiagram: result.fieldDiagram,
+            isLoading: false,
+            timestamp: result.timestamp,
+          }));
+        } else {
+          setAnalysis(prev => ({ ...prev, isLoading: false }));
+        }
       } catch (error) {
-        console.error('Error fetching analogy:', error);
+        console.error('Error fetching live commentary or analogy:', error);
         setAnalysis(prev => ({ ...prev, isLoading: false }));
       }
     }
