@@ -13,7 +13,7 @@ class GeminiAudioTranscriber:
         self.api_key = api_key or os.getenv("GEMINI_API_KEY")
 
         # Use env if present, otherwise default to a valid model
-        self.model_name = os.getenv("GEMINI_MODEL") or "gemini-2.5-flash"
+        self.model_name = os.getenv("GEMINI_MODEL") or "gemini-1.5-flash"
 
         self.model = None
 
@@ -26,7 +26,7 @@ class GeminiAudioTranscriber:
                     self.model = genai.GenerativeModel(self.model_name)
                 except Exception:
                     # Fallback to a different model if the first fails
-                    self.model_name = "gemini-2.5-pro"
+                    self.model_name = "gemini-1.5-pro"
                     self.model = genai.GenerativeModel(self.model_name)
 
                 logger.info(f"[GEMINI AUDIO] Initialized with {self.model_name}")

@@ -10,7 +10,7 @@ class AnalogyGenerator:
     
     def __init__(self, api_key: Optional[str] = None):
         self.api_key = api_key or os.getenv("GEMINI_API_KEY")
-        self.model_name = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
+        self.model_name = os.getenv("GEMINI_MODEL", "gemini-1.5-flash")
         self.model = None
         
         if self.api_key:
@@ -21,7 +21,7 @@ class AnalogyGenerator:
                     # Try model from .env first
                     self.model = genai.GenerativeModel(self.model_name)
                 except Exception:
-                    self.model_name = "gemini-2.5-pro"
+                    self.model_name = "gemini-1.5-pro"
                     self.model = genai.GenerativeModel(self.model_name)
 
 

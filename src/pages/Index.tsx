@@ -9,11 +9,13 @@ import { videoSourceManager } from '@/lib/videoSources';
 import { fetchVideoMetadata } from '@/lib/chatAgent';
 import { generateAnalogy, generateAnalogyFromText, AnalogyOutput, fetchCaptions, speakText, stopSpeaking } from '@/lib/analogyAgent';
 import { getLiveCommentary } from '@/lib/commentaryAgent';
+import { generateNFLAnalogy, speakWithElevenLabs } from '@/lib/nflAgent';
 import { MatchEvent } from '@/data/matchData';
 
 interface AnalysisState {
   commentary: string;
   nflAnalogy: string;
+  nflCommentary: string;
   fieldDiagram: MatchEvent['diagram'];
   isLoading: boolean;
   timestamp: number;
@@ -30,10 +32,12 @@ const Index = () => {
   const [analysis, setAnalysis] = useState<AnalysisState>({
     commentary: "Paste a video URL to see real-time soccer analysis with NFL analogies.",
     nflAnalogy: "NFL analogies will appear here as you watch the video.",
+    nflCommentary: "",
     fieldDiagram: 'defensive',
     isLoading: false,
     timestamp: 0,
   });
+  const [isPlayingVoice, setIsPlayingVoice] = useState(false);
 
   useEffect(() => {
     if (videoUrl) {
@@ -91,17 +95,18 @@ const Index = () => {
       
       if (liveCommentaryResult.commentary && !liveCommentaryResult.skipped) {
         const visionCommentary = liveCommentaryResult.commentary;
-        
+
         setAnalysis(prev => ({
           ...prev,
           commentary: visionCommentary,
         }));
-        
+
         try {
-          const nflAnalogy = await generateAnalogyFromText(visionCommentary);
+          const nflResult = await generateNFLAnalogy(visionCommentary);
           setAnalysis(prev => ({
             ...prev,
-            nflAnalogy,
+            nflAnalogy: nflResult.nfl_analogy,
+            nflCommentary: nflResult.nfl_commentary,
             isLoading: false,
           }));
         } catch (error) {
@@ -157,6 +162,25 @@ const Index = () => {
       console.error('Speech error:', error);
     } finally {
       setIsSpeaking(false);
+    }
+  };
+
+  const handlePlayVoice = async () => {
+    if (isPlayingVoice || !analysis.nflCommentary) {
+      return;
+    }
+
+    setIsPlayingVoice(true);
+    try {
+      const success = await speakWithElevenLabs(analysis.nflCommentary);
+      if (!success) {
+        console.warn('ElevenLabs TTS failed, falling back to browser TTS');
+        await speakText(analysis.nflCommentary, { rate: 1.0, pitch: 1.0 });
+      }
+    } catch (error) {
+      console.error('Voice playback error:', error);
+    } finally {
+      setIsPlayingVoice(false);
     }
   };
 
@@ -220,6 +244,43 @@ const Index = () => {
               {renderMarkdown(analysis.nflAnalogy)}
             </p>
           </div>
+
+          {analysis.nflCommentary && (
+            <div className="bg-gradient-to-r from-orange-500/10 to-orange-500/5 rounded-lg p-3 border border-orange-500/30">
+              <div className="flex items-center justify-between mb-1">
+                <div className="flex items-center gap-2">
+                  <span className="text-base">📢</span>
+                  <h3 className="font-chalk text-base text-orange-400">NFL Commentary</h3>
+                </div>
+                <button
+                  onClick={handlePlayVoice}
+                  disabled={isPlayingVoice || !analysis.nflCommentary}
+                  className={`flex items-center gap-1 px-2 py-1 rounded text-xs font-body transition-colors ${
+                    isPlayingVoice
+                      ? 'bg-orange-500/30 text-orange-300 cursor-wait'
+                      : 'bg-orange-500/20 hover:bg-orange-500/30 text-orange-400 hover:text-orange-300'
+                  } disabled:opacity-50 disabled:cursor-not-allowed`}
+                >
+                  {isPlayingVoice ? (
+                    <>
+                      <span className="w-3 h-3 border-2 border-orange-400 border-t-transparent rounded-full animate-spin" />
+                      Playing...
+                    </>
+                  ) : (
+                    <>
+                      <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+                        <path d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" />
+                      </svg>
+                      Play Voice
+                    </>
+                  )}
+                </button>
+              </div>
+              <p className={`text-chalk-white font-body text-sm leading-snug font-medium ${analysis.isLoading ? 'opacity-50' : ''}`}>
+                {renderMarkdown(analysis.nflCommentary)}
+              </p>
+            </div>
+          )}
 
           <div className="flex-shrink-0">
             <TacticsDiagram diagramType={analysis.fieldDiagram} />

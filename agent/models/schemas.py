@@ -52,3 +52,16 @@ class LiveCommentaryResponse(BaseModel):
     timestamp: float = Field(..., description="Timestamp used for commentary")
     skipped: bool = Field(default=False, description="Whether commentary was skipped due to similarity")
     error: Optional[str] = Field(None, description="Error message if generation failed")
+
+
+class NFLAnalogyRequest(BaseModel):
+    soccer_commentary: str = Field(..., description="Soccer commentary text to convert")
+
+
+class NFLAnalogyResponse(BaseModel):
+    nfl_analogy: str = Field(..., description="Tactical explanation using NFL concepts (2-4 sentences)")
+    nfl_commentary: str = Field(..., description="Energetic NFL broadcast style commentary (15-35 words)")
+
+
+class TTSRequest(BaseModel):
+    text: str = Field(..., description="Text to convert to speech")

@@ -1,11 +1,16 @@
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import Response
 from pydantic import BaseModel
 import os
 import asyncio
 import logging
 from dotenv import load_dotenv
-from models.schemas import AnalyzeRequest, AnalyzeResponse, HealthResponse, ChatRequest, ChatResponse, LiveCommentaryRequest, LiveCommentaryResponse
+from models.schemas import (
+    AnalyzeRequest, AnalyzeResponse, HealthResponse, ChatRequest, ChatResponse,
+    LiveCommentaryRequest, LiveCommentaryResponse, NFLAnalogyRequest, NFLAnalogyResponse,
+    TTSRequest
+)
 from services.caption_extractor import YouTubeCaptionExtractor
 from services.analogy_generator import AnalogyGenerator
 from services.cache_manager import CacheManager
@@ -14,6 +19,8 @@ from services.youtube_extractor import YouTubeFrameExtractor
 from services.chat_service import ChatService
 from services.video_metadata import VideoMetadataExtractor
 from services.commentary_orchestrator import CommentaryOrchestrator
+from services.nfl_analogy_service import NFLAnalogyService
+from services.tts_service import TTSService
 
 logging.basicConfig(
     level=logging.INFO,
@@ -48,6 +55,8 @@ cache = CacheManager()
 chat_service = ChatService()
 metadata_extractor = VideoMetadataExtractor()
 commentary_orchestrator = CommentaryOrchestrator()
+nfl_analogy_service = NFLAnalogyService(api_key=api_key)
+tts_service = TTSService()
 
 
 @app.post("/api/analyze", response_model=AnalyzeResponse)
@@ -333,20 +342,83 @@ async def generate_live_commentary(request: LiveCommentaryRequest):
         raise HTTPException(status_code=500, detail=f"Commentary generation failed: {str(e)}")
 
 
+@app.post("/api/nfl-analogy", response_model=NFLAnalogyResponse)
+async def generate_nfl_analogy(request: NFLAnalogyRequest):
+    """
+    Convert soccer commentary to NFL analogy and broadcast-style commentary.
+
+    - Stays faithful to the soccer commentary (no invented events)
+    - Uses generic NFL terms (no real team/player/stadium names)
+    - Returns tactical analogy (2-4 sentences) and broadcast commentary (15-35 words)
+    """
+    try:
+        logger = logging.getLogger(__name__)
+        logger.info(f"[NFL-ANALOGY] Request: {request.soccer_commentary[:50]}...")
+
+        if not request.soccer_commentary or not request.soccer_commentary.strip():
+            return NFLAnalogyResponse(nfl_analogy="", nfl_commentary="")
+
+        nfl_analogy, nfl_commentary = await nfl_analogy_service.generate_nfl_analogy(
+            request.soccer_commentary
+        )
+
+        logger.info(f"[NFL-ANALOGY] Generated analogy: {nfl_analogy[:50]}...")
+        return NFLAnalogyResponse(nfl_analogy=nfl_analogy, nfl_commentary=nfl_commentary)
+
+    except Exception as e:
+        logger = logging.getLogger(__name__)
+        logger.error(f"[NFL-ANALOGY] Error: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"NFL analogy generation failed: {str(e)}")
+
+
+@app.post("/api/tts")
+async def text_to_speech(request: TTSRequest):
+    """
+    Convert text to speech using ElevenLabs API.
+
+    Returns audio/mpeg content that can be played directly in the browser.
+    """
+    try:
+        logger = logging.getLogger(__name__)
+        logger.info(f"[TTS] Request: {len(request.text)} characters")
+
+        if not request.text or not request.text.strip():
+            raise HTTPException(status_code=400, detail="Text cannot be empty")
+
+        if not tts_service.is_available():
+            raise HTTPException(status_code=503, detail="TTS service not available - ELEVENLABS_API_KEY not set")
+
+        audio_bytes = await tts_service.synthesize(request.text)
+
+        if audio_bytes is None:
+            raise HTTPException(status_code=500, detail="Failed to generate audio")
+
+        logger.info(f"[TTS] Generated {len(audio_bytes)} bytes of audio")
+        return Response(content=audio_bytes, media_type="audio/mpeg")
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger = logging.getLogger(__name__)
+        logger.error(f"[TTS] Error: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"TTS generation failed: {str(e)}")
+
 
 @app.get("/health")
 async def health_check():
     api_key_set = bool(os.getenv("GEMINI_API_KEY"))
     vision_enabled = vision_analyzer.model is not None
     gemini_enabled = bool(os.getenv("GEMINI_API_KEY"))
-    
+    tts_enabled = tts_service.is_available()
+
     return {
         "status": "healthy",
         "service": "gaffer-agent",
-        "version": "1.0.0",
+        "version": "1.1.0",
         "has_api_key": api_key_set,
         "has_vision": vision_enabled,
         "has_gemini": gemini_enabled,
+        "has_tts": tts_enabled,
         "port": int(os.getenv("PORT", 8000)),
         "message": "Vision analysis enabled" if vision_enabled else "Vision analysis disabled - set GEMINI_API_KEY in .env to enable"
     }
@@ -356,17 +428,20 @@ async def health_check():
 async def root():
     return {
         "service": "Gaffer's Chalkboard Agent",
-        "version": "1.0.0",
+        "version": "1.1.0",
         "endpoints": {
             "analyze": "/api/analyze",
             "chat": "/api/chat",
             "live-commentary": "/api/live-commentary",
+            "nfl-analogy": "/api/nfl-analogy",
+            "tts": "/api/tts",
             "health": "/health",
             "docs": "/docs"
         },
         "ai_provider": ai_provider,
         "vision_enabled": vision_analyzer.model is not None,
-        "gemini_enabled": bool(os.getenv("GEMINI_API_KEY"))
+        "gemini_enabled": bool(os.getenv("GEMINI_API_KEY")),
+        "tts_enabled": tts_service.is_available()
     }
 
 

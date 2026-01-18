@@ -10,7 +10,7 @@ from utils.image_processor import compress_image
 class GeminiVisionAnalyzer:
     def __init__(self, api_key: Optional[str] = None):
         self.api_key = api_key or os.getenv("GEMINI_API_KEY")
-        self.model_name = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
+        self.model_name = os.getenv("GEMINI_MODEL", "gemini-1.5-flash")
 
         self.model = None
         if self.api_key:
