@@ -6,6 +6,7 @@ import os
 import asyncio
 import logging
 from dotenv import load_dotenv
+from pathlib import Path
 from models.schemas import (
     AnalyzeRequest, AnalyzeResponse, HealthResponse, ChatRequest, ChatResponse,
     LiveCommentaryRequest, LiveCommentaryResponse, NFLAnalogyRequest, NFLAnalogyResponse,
@@ -27,7 +28,36 @@ logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 
-load_dotenv()
+# Load .env file from the same directory as this script
+env_path = Path(__file__).parent / '.env'
+loaded = load_dotenv(env_path)  # <-- add this
+
+
+def _mask(key: str, show: int = 6):
+    v = os.getenv(key)
+    if not v:
+        return "NOT SET"
+    if len(v) <= show * 2:
+        return v
+    return f"{v[:show]}...{v[-show:]}"
+
+print("[ENV CHECK]")
+print("AI_PROVIDER        =", os.getenv("AI_PROVIDER"))
+print("GEMINI_API_KEY     =", _mask("GEMINI_API_KEY"))
+print("ELEVENLABS_API_KEY =", _mask("ELEVENLABS_API_KEY"))
+print("PORT               =", os.getenv("PORT"))
+print("HOST               =", os.getenv("HOST"))
+print("-" * 40)
+
+
+# --- ADD ONLY THIS BLOCK (env check) ---
+print(f"[ENV] Looking for .env at: {env_path}")
+print(f"[ENV] .env exists? {env_path.exists()}")
+print(f"[ENV] load_dotenv success? {loaded}")
+print(f"[ENV] AI_PROVIDER set? {bool(os.getenv('AI_PROVIDER'))}")
+print(f"[ENV] GEMINI_API_KEY set? {bool(os.getenv('GEMINI_API_KEY'))}")
+print(f"[ENV] ELEVENLABS_API_KEY set? {bool(os.getenv('ELEVENLABS_API_KEY'))}")
+# --- END BLOCK ---
 
 app = FastAPI(
     title="Gaffer's Chalkboard Agent",

@@ -29,36 +29,32 @@ class CommentaryOrchestrator:
             
             logger.info(f"[ORCHESTRATOR] Generating commentary for {video_url} at {current_time:.1f}s")
             
-            raw_action = None
+            logger.info("[ORCHESTRATOR] Extracting frame window for Gemini Vision...")
+            frames, timestamps = await self.frame_service.get_frame_window(
+                video_url,
+                current_time,
+                window_size=window_size
+            )
             
-            if not raw_action:
-                logger.info("[ORCHESTRATOR] Step 2: Extracting frame window for Gemini Vision...")
-                frames, timestamps = await self.frame_service.get_frame_window(
-                    video_url,
-                    current_time,
-                    window_size=window_size
-                )
-                
-                if not frames:
-                    logger.warning("[ORCHESTRATOR] No frames extracted - returning stub")
-                    return {
-                        "commentary": None,
-                        "raw_action": None,
-                        "timestamp": current_time,
-                        "skipped": False,
-                        "error": "No frames extracted"
-                    }
-                
-                logger.info(f"[ORCHESTRATOR] ✓ Extracted {len(frames)} frames")
-                
-                logger.info("[ORCHESTRATOR] Analyzing with Gemini Vision...")
-                commentary = await self.vision_analyzer.analyze_frame_window(frames, timestamps)
+            if not frames:
+                logger.warning("[ORCHESTRATOR] No frames extracted - returning stub")
+                return {
+                    "commentary": None,
+                    "raw_action": None,
+                    "timestamp": current_time,
+                    "skipped": False,
+                    "error": "No frames extracted"
+                }
+            
+            logger.info(f"[ORCHESTRATOR] ✓ Extracted {len(frames)} frames")
+            
+            logger.info("[ORCHESTRATOR] Analyzing with Gemini Vision...")
+            commentary = await self.vision_analyzer.analyze_frame_window(frames, timestamps)
 
-                if not commentary or len(commentary.strip()) < 5:
-                    raise RuntimeError("Gemini Vision returned empty/invalid commentary")
+            if not commentary or len(commentary.strip()) < 5:
+                raise RuntimeError("Gemini Vision returned empty/invalid commentary")
 
-                logger.info(f"[ORCHESTRATOR] ✓ Commentary: {commentary[:80]}...")
-
+            logger.info(f"[ORCHESTRATOR] ✓ Commentary: {commentary[:80]}...")
             
             logger.info("[ORCHESTRATOR] Checking deduplication...")
             should_skip = deduplicator.should_skip(commentary)
