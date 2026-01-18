@@ -4,7 +4,6 @@
 
 The backend has been migrated from Node.js/Express to Python FastAPI for better AI/ML capabilities and video frame analysis.
 
-## What Changed
 
 ### Backend
 - **Old**: Node.js Express server (`backend/server.js`) on port 3001

@@ -2,7 +2,7 @@
 
 ## What Changed
 
-### ❌ OLD (Slow):
+
 1. Extract frame from YouTube (1-2s)
 2. Analyze frame with Claude Vision API (1-2s)  
 3. Generate NFL analogy (0.5-1s)

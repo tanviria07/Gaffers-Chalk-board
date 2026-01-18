@@ -1,6 +1,5 @@
 # 🚀 Performance Optimizations Applied!
 
-## What I Optimized
 
 ### 1. **Faster Frame Extraction** (50% faster)
 - Reduced video quality: 720p → 480p

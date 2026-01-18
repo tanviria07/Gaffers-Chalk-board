@@ -11,7 +11,6 @@
 3. ✅ Started the backend server on port 8001
 4. ✅ Verified server is running and healthy
 
-## Next Steps - DO THIS NOW:
 
 ### 1. Restart Your Frontend
 Stop the current frontend (Ctrl+C) and restart it:
