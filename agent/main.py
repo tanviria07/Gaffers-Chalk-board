@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import os
@@ -38,7 +38,7 @@ app.add_middleware(
 )
 
 ai_provider = (os.getenv("AI_PROVIDER", "stub")).lower()
-api_key = os.getenv("ANTHROPIC_API_KEY") if ai_provider == "anthropic" else os.getenv("ANTHROPIC_API_KEY")
+api_key = os.getenv("GEMINI_API_KEY")
 
 caption_extractor = YouTubeCaptionExtractor()
 analogy_generator = AnalogyGenerator(api_key=api_key)
@@ -79,7 +79,7 @@ async def analyze_video(request: AnalyzeRequest):
         try:
             frame_base64 = await asyncio.wait_for(
                 frame_extractor.extract_frame(request.videoId, request.timestamp),
-                timeout=5.0
+                timeout=10.0
             )
             if frame_base64:
                 print(f"[STEP 1] ✓ Frame extracted successfully (size: {len(frame_base64)} chars)")
@@ -97,15 +97,15 @@ async def analyze_video(request: AnalyzeRequest):
         commentary = None
         vision_analysis_error = None
         if frame_base64:
-            if not (vision_analyzer.azure_client or vision_analyzer.claude_client):
+            if not vision_analyzer.model:
                 print("[STEP 2] ✗ Vision analyzer not initialized (no API key)")
-                vision_analysis_error = "Vision analyzer not initialized - ANTHROPIC_API_KEY not set"
+                vision_analysis_error = "Vision analyzer not initialized - GEMINI_API_KEY not set"
             else:
                 print("[STEP 2] Analyzing frame with vision AI...")
                 try:
                     commentary = await asyncio.wait_for(
                         vision_analyzer.analyze_frame(frame_base64),
-                        timeout=5.0
+                        timeout=15.0
                     )
                     if commentary:
                         print(f"[STEP 2] ✓ Generated commentary from vision: {commentary[:50]}...")
@@ -181,7 +181,7 @@ async def analyze_video(request: AnalyzeRequest):
         cache.set(primary_cache_key, response_data, expire=600)
         
         print(f"[COMPLETE] Analysis complete: {commentary[:50]}...")
-        print(f"[SUMMARY] Commentary source: {'Vision AI' if frame_base64 and (vision_analyzer.azure_client or vision_analyzer.claude_client) else 'Captions' if commentary and not any(phrase in commentary for phrase in ['Players are moving', 'The team is building']) else 'Stub'}")
+        print(f"[SUMMARY] Commentary source: {'Vision AI' if frame_base64 and vision_analyzer.model else 'Captions' if commentary and not any(phrase in commentary for phrase in ['Players are moving', 'The team is building']) else 'Stub'}")
         return AnalyzeResponse(**response_data)
         
     except HTTPException:
@@ -194,8 +194,14 @@ async def analyze_video(request: AnalyzeRequest):
 
 
 @app.get("/api/captions/{video_id:path}")
-async def get_captions(video_id: str):
+async def get_captions(video_id: str, timestamp: float = Query(None), audio_fallback: bool = Query(False)):
     try:
+        if timestamp is not None and audio_fallback:
+            caption_text = await caption_extractor.get_caption_at_timestamp(video_id, timestamp, use_speech_fallback=True)
+            if caption_text:
+                return {"text": caption_text, "videoId": video_id, "timestamp": timestamp}
+            return {"text": None, "videoId": video_id, "timestamp": timestamp}
+        
         captions = await caption_extractor.fetch_captions(video_id)
         return {"captions": captions, "videoId": video_id}
     except Exception as e:
@@ -297,31 +303,41 @@ async def generate_live_commentary(request: LiveCommentaryRequest):
     try:
         logger = logging.getLogger(__name__)
         logger.info(f"[LIVE COMMENTARY] Generating commentary for {request.videoId} at {request.timestamp}s")
-        
-        result = await commentary_orchestrator.generate_live_commentary(
-            video_url=request.videoId,
-            current_time=request.timestamp,
-            window_size=request.windowSize
+
+        # Hard timeout so UI stays responsive even if YouTube blocks some frames
+        timeout_seconds = float(os.getenv("LIVE_COMMENTARY_TIMEOUT", "8.0"))
+
+        result = await asyncio.wait_for(
+            commentary_orchestrator.generate_live_commentary(
+                video_url=request.videoId,
+                current_time=request.timestamp,
+                window_size=request.windowSize
+            ),
+            timeout=timeout_seconds
         )
-        
+
         logger.info(f"[LIVE COMMENTARY] Result: commentary={result.get('commentary') is not None}, skipped={result.get('skipped', False)}")
-        
         return LiveCommentaryResponse(**result)
-        
+
+    except asyncio.TimeoutError:
+        logger = logging.getLogger(__name__)
+        logger.warning("[LIVE COMMENTARY] Timed out — returning skipped to keep UI smooth")
+        return LiveCommentaryResponse(commentary=None, skipped=True, timestamp=request.timestamp)
+
+
     except HTTPException:
         raise
     except Exception as e:
         logger = logging.getLogger(__name__)
         logger.error(f"[LIVE COMMENTARY] Error: {e}", exc_info=True)
-        import traceback
-        traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"Commentary generation failed: {str(e)}")
+
 
 
 @app.get("/health")
 async def health_check():
-    api_key_set = bool(os.getenv("ANTHROPIC_API_KEY"))
-    vision_enabled = vision_analyzer.azure_client is not None or vision_analyzer.claude_client is not None
+    api_key_set = bool(os.getenv("GEMINI_API_KEY"))
+    vision_enabled = vision_analyzer.model is not None
     gemini_enabled = bool(os.getenv("GEMINI_API_KEY"))
     
     return {
@@ -332,7 +348,7 @@ async def health_check():
         "has_vision": vision_enabled,
         "has_gemini": gemini_enabled,
         "port": int(os.getenv("PORT", 8000)),
-        "message": "Vision analysis enabled" if vision_enabled else "Vision analysis disabled - set ANTHROPIC_API_KEY in .env to enable"
+        "message": "Vision analysis enabled" if vision_enabled else "Vision analysis disabled - set GEMINI_API_KEY in .env to enable"
     }
 
 
@@ -349,7 +365,7 @@ async def root():
             "docs": "/docs"
         },
         "ai_provider": ai_provider,
-        "vision_enabled": vision_analyzer.azure_client is not None or vision_analyzer.claude_client is not None,
+        "vision_enabled": vision_analyzer.model is not None,
         "gemini_enabled": bool(os.getenv("GEMINI_API_KEY"))
     }
 
@@ -362,15 +378,8 @@ if __name__ == "__main__":
     
     print(f"Starting Gaffer's Chalkboard Agent on {host}:{port}")
     print(f"AI Provider: {ai_provider}")
-    vision_provider = vision_analyzer.provider if (vision_analyzer.azure_client or vision_analyzer.claude_client) else None
+    vision_provider = vision_analyzer.provider if vision_analyzer.model else None
     print(f"Vision Analysis: {'Enabled (' + vision_provider + ')' if vision_provider else 'Disabled (no API key)'}")
-    
-    azure_key = os.getenv("AZURE_OPENAI_KEY")
-    azure_endpoint = os.getenv("AZURE_OPENAI_ENDPOINT")
-    print(f"Chat Service: {'Enabled' if (azure_key and azure_endpoint) else 'Disabled (no Azure credentials)'}")
-    if azure_key and azure_endpoint:
-        print(f"  Azure Endpoint: {azure_endpoint}")
-        print(f"  Azure Deployment: {os.getenv('AZURE_OPENAI_DEPLOYMENT', 'gpt-4o-mini')}")
     
     print(f"API Docs available at: http://{host}:{port}/docs")
     

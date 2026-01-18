@@ -1,8 +1,8 @@
 
 import os
-import httpx
 import re
 import asyncio
+import google.generativeai as genai
 from typing import Optional, Dict, Any
 
 
@@ -10,27 +10,23 @@ class ChatService:
     
     
     def __init__(self):
-        self.api_key = os.getenv("AZURE_OPENAI_KEY")
-        self.endpoint = os.getenv("AZURE_OPENAI_ENDPOINT")
-        self.deployment = os.getenv("AZURE_OPENAI_DEPLOYMENT", "gpt-4o-mini")
-        self.api_version = os.getenv("AZURE_OPENAI_API_VERSION", "2024-07-01-preview")
+        self.api_key = os.getenv("GEMINI_API_KEY")
+        self.model_name = os.getenv("GEMINI_MODEL", "gemini-1.5-flash-latest")
+        self.model = None
         
-
-        if self.endpoint and not self.endpoint.endswith('/'):
-            self.endpoint += '/'
-        self.chat_endpoint = f"{self.endpoint}openai/deployments/{self.deployment}/chat/completions?api-version={self.api_version}"
-        
-        self.client = None
-        if self.api_key and self.endpoint:
-            self.client = httpx.AsyncClient(timeout=30.0)
-            print(f"[CHAT] Azure OpenAI initialized: endpoint={self.endpoint}, deployment={self.deployment}")
+        if self.api_key:
+            try:
+                genai.configure(api_key=self.api_key)
+                self.model = genai.GenerativeModel(self.model_name)
+                print(f"[CHAT] Gemini initialized")
+            except Exception as e:
+                print(f"[CHAT] Warning: Could not initialize Gemini: {e}")
+                self.model = None
         else:
-            print(f"[CHAT] Azure OpenAI NOT initialized - missing credentials")
-            print(f"[CHAT] Debug: api_key={'SET' if self.api_key else 'NOT SET'}, endpoint={'SET' if self.endpoint else 'NOT SET'}")
+            print(f"[CHAT] Gemini NOT initialized - GEMINI_API_KEY not set")
     
     def _is_available(self) -> bool:
-        
-        return self.client is not None and self.api_key is not None and self.endpoint is not None
+        return self.model is not None
     
     def _parse_timestamp_from_message(self, message: str) -> Optional[float]:
         
@@ -129,11 +125,10 @@ class ChatService:
     ) -> str:
         
         if not self._is_available():
-            print(f"[CHAT] Azure OpenAI not available - using stub response")
-            print(f"[CHAT] Debug: api_key={'SET' if self.api_key else 'NOT SET'}, endpoint={'SET' if self.endpoint else 'NOT SET'}, client={'SET' if self.client else 'NOT SET'}")
+            print(f"[CHAT] Gemini not available - using stub response")
             return self._generate_stub_response(user_message, current_time, context)
         
-        print(f"[CHAT] Calling Azure OpenAI at {self.chat_endpoint}")
+        print(f"[CHAT] Calling Gemini")
         
         system_prompt = "You are a knowledgeable soccer analyst helping users understand soccer tactics and plays in videos. Provide clear, concise explanations using soccer terminology. If asked about NFL analogies, use American football comparisons. Be helpful and specific about what's happening in the video."
 
@@ -486,75 +481,33 @@ class ChatService:
 
         
 
-        max_retries = 3
-        retry_delay = 2.0
-        
-        for attempt in range(max_retries):
-            try:
-                print(f"[CHAT] Sending request to Azure OpenAI... (attempt {attempt + 1}/{max_retries})")
-                response = await self.client.post(
-                    self.chat_endpoint,
-                    headers={
-                        "api-key": self.api_key,
-                        "Content-Type": "application/json"
-                    },
-                    json={
-                        "messages": [
-                            {"role": "system", "content": system_prompt},
-                            {"role": "user", "content": user_prompt}
-                        ],
+        try:
+            full_prompt = f"{system_prompt}\n\n{user_prompt}"
+            
+            loop = asyncio.get_event_loop()
+            response = await loop.run_in_executor(
+                None,
+                lambda: self.model.generate_content(
+                    full_prompt,
+                    generation_config={
                         "temperature": 0.7,
-                        "max_tokens": 200
+                        "max_output_tokens": 500,
                     }
                 )
-                
-                print(f"[CHAT] Azure OpenAI response status: {response.status_code}")
-                
-                if response.status_code == 200:
-                    data = response.json()
-                    ai_response = data.get("choices", [{}])[0].get("message", {}).get("content", "").strip()
-                    print(f"[CHAT] ✓ Got AI response: {ai_response[:100]}...")
-                    return ai_response
-                elif response.status_code == 429:
-
-                    error_data = response.json() if response.text else {}
-                    retry_after = error_data.get('error', {}).get('message', '')
-                    
-                    if attempt < max_retries - 1:
-
-                        import re
-                        retry_match = re.search(r'retry after (\d+) seconds?', retry_after.lower())
-                        if retry_match:
-                            retry_delay = float(retry_match.group(1)) + 1
-                        else:
-                            retry_delay = retry_delay * 2
-                        
-                        print(f"[CHAT] Rate limit (429) - waiting {retry_delay:.1f}s before retry...")
-                        await asyncio.sleep(retry_delay)
-                        continue
-                    else:
-                        print(f"[CHAT] ✗ Azure OpenAI rate limit - max retries reached")
-                        return self._generate_stub_response(user_message, current_time, context)
-                else:
-                    print(f"[CHAT] ✗ Azure OpenAI API error: {response.status_code} - {response.text}")
-                    return self._generate_stub_response(user_message, current_time, context)
-            except Exception as e:
-                print(f"[CHAT] ✗ Chat service error: {e}")
-                import traceback
-                traceback.print_exc()
-
-                if attempt == max_retries - 1:
-                    return self._generate_stub_response(user_message, current_time, context)
-
-                await asyncio.sleep(retry_delay)
-                continue
-        
-
-        return self._generate_stub_response(user_message, current_time, context)
+            )
+            
+            ai_response = response.text.strip()
+            print(f"[CHAT] ✓ Got AI response: {ai_response[:100]}...")
+            return ai_response
+        except Exception as e:
+            print(f"[CHAT] ✗ Chat service error: {e}")
+            import traceback
+            traceback.print_exc()
+            return self._generate_stub_response(user_message, current_time, context)
     
     def _generate_stub_response(self, user_message: str, current_time: float, context: Optional[Dict[str, Any]] = None) -> str:
         
-        print(f"[CHAT] Generating stub response (Azure OpenAI not available)")
+        print(f"[CHAT] Generating stub response (Gemini not available)")
         minutes = int(current_time // 60)
         seconds = int(current_time % 60)
         timestamp_str = f"{minutes}:{seconds:02d}"
@@ -564,16 +517,16 @@ class ChatService:
 
         if any(word in user_lower for word in ['what', 'happening', 'going on']):
             if context and context.get('commentary'):
-                return f"At {timestamp_str}, {context['commentary']} This is a placeholder response - Azure OpenAI integration coming soon!"
-            return f"At {timestamp_str}, players are engaged in active play. This is a placeholder response - configure Azure OpenAI to get real answers!"
+                return f"At {timestamp_str}, {context['commentary']} This is a placeholder response - Gemini integration coming soon!"
+            return f"At {timestamp_str}, players are engaged in active play. This is a placeholder response - configure GEMINI_API_KEY to get real answers!"
         
         if any(word in user_lower for word in ['why', 'reason', 'explain']):
             if context and context.get('nflAnalogy'):
-                return f"At {timestamp_str}, {context['nflAnalogy']} This is a placeholder response - configure Azure OpenAI for detailed explanations!"
-            return f"At {timestamp_str}, this play demonstrates tactical movement. This is a placeholder response - configure Azure OpenAI to get real explanations!"
+                return f"At {timestamp_str}, {context['nflAnalogy']} This is a placeholder response - configure GEMINI_API_KEY for detailed explanations!"
+            return f"At {timestamp_str}, this play demonstrates tactical movement. This is a placeholder response - configure GEMINI_API_KEY to get real explanations!"
         
         if any(word in user_lower for word in ['tactic', 'strategy', 'formation']):
-            return f"At {timestamp_str}, the teams are executing their tactical plans. This is a placeholder response - configure Azure OpenAI for tactical analysis!"
+            return f"At {timestamp_str}, the teams are executing their tactical plans. This is a placeholder response - configure GEMINI_API_KEY for tactical analysis!"
         
 
-        return f"At {timestamp_str}, I understand you're asking: '{user_message}'. This is a placeholder response - configure Azure OpenAI to get intelligent answers about the play!"
+        return f"At {timestamp_str}, I understand you're asking: '{user_message}'. This is a placeholder response - configure GEMINI_API_KEY to get intelligent answers about the play!"

@@ -27,9 +27,6 @@ const Index = () => {
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [videoMetadata, setVideoMetadata] = useState<any>(null);
   const lastFetchedTime = useRef<number>(-1);
-  const [captions, setCaptions] = useState<{ text: string; start: number; dur: number }[]>([]);
-  const lastCaptionText = useRef<string>('');
-
   const [analysis, setAnalysis] = useState<AnalysisState>({
     commentary: "Paste a video URL to see real-time soccer analysis with NFL analogies.",
     nflAnalogy: "NFL analogies will appear here as you watch the video.",
@@ -64,139 +61,73 @@ const Index = () => {
         }
       });
       
-      console.log('Pre-loading captions for live analysis...');
-      fetchCaptions(videoId).then(loadedCaptions => {
-        setCaptions(loadedCaptions);
-        console.log(`✓ Loaded ${loadedCaptions.length} captions for live analysis`);
-        if (loadedCaptions.length === 0) {
-          console.warn('No captions available - live analysis will use vision API');
-        }
-      }).catch(error => {
-        console.error('Error pre-loading captions:', error);
-        setCaptions([]);
-      });
     } else {
       setVideoMetadata(null);
-      setCaptions([]);
     }
   }, [videoId]);
-
-  const findCaptionAtTimestamp = useCallback((timestamp: number): string | null => {
-    if (captions.length === 0) {
-      console.log(`[LIVE] No captions available at ${timestamp}s`);
-      return null;
-    }
-    
-    for (const caption of captions) {
-      const start = caption.start;
-      const end = caption.start + caption.dur;
-      if (timestamp >= start && timestamp < end) {
-        console.log(`[LIVE] Found caption at ${timestamp}s: "${caption.text.substring(0, 50)}..." (${start}s - ${end}s)`);
-        return caption.text;
-      }
-    }
-    
-    let nearest = null;
-    let minDiff = 2.0;
-    for (const caption of captions) {
-      const start = caption.start;
-      const diff = Math.abs(timestamp - start);
-      if (diff < minDiff) {
-        minDiff = diff;
-        nearest = caption;
-      }
-    }
-    
-    if (nearest) {
-      console.log(`[LIVE] Using nearest caption at ${timestamp}s: "${nearest.text.substring(0, 50)}..." (${nearest.start}s)`);
-      return nearest.text;
-    }
-    
-    console.log(`[LIVE] No caption found at ${timestamp}s`);
-    return null;
-  }, [captions]);
 
   const updateLiveAnalysis = useCallback(async (timestamp: number) => {
     if (!videoId) return;
 
     setAnalysis(prev => ({ ...prev, timestamp }));
 
-    const captionText = findCaptionAtTimestamp(timestamp);
+    const roundedTime = Math.floor(timestamp / 5) * 5;
+    if (Math.abs(roundedTime - lastFetchedTime.current) < 5) {
+      return;
+    }
     
-    if (captionText) {
-      setAnalysis(prev => ({ ...prev, commentary: captionText }));
+    lastFetchedTime.current = roundedTime;
+    setAnalysis(prev => ({ ...prev, isLoading: true }));
+    
+    try {
+      console.log(`[What's Happening] Fetching for videoId=${videoId}, timestamp=${timestamp.toFixed(1)}s`);
+      const liveCommentaryResult = await getLiveCommentary({
+        videoId,
+        timestamp,
+        windowSize: 5.0,
+      });
       
-      if (captionText !== lastCaptionText.current) {
-        lastCaptionText.current = captionText;
-        setAnalysis(prev => ({ ...prev, isLoading: true }));
+      console.log(`[What's Happening] Result: commentary=${liveCommentaryResult.commentary?.substring(0, 50)}..., skipped=${liveCommentaryResult.skipped}`);
+      
+      if (liveCommentaryResult.commentary && !liveCommentaryResult.skipped) {
+        const visionCommentary = liveCommentaryResult.commentary;
+        
+        setAnalysis(prev => ({
+          ...prev,
+          commentary: visionCommentary,
+        }));
         
         try {
-          const nflAnalogy = await generateAnalogyFromText(captionText);
+          const nflAnalogy = await generateAnalogyFromText(visionCommentary);
           setAnalysis(prev => ({
             ...prev,
             nflAnalogy,
             isLoading: false,
           }));
         } catch (error) {
-          console.error('Error generating NFL analogy:', error);
+          console.error('Error generating NFL analogy from vision commentary:', error);
           setAnalysis(prev => ({ ...prev, isLoading: false }));
         }
-      }
-    } else {
-      const roundedTime = Math.floor(timestamp / 10) * 10;
-      if (Math.abs(roundedTime - lastFetchedTime.current) < 10) {
-        return;
-      }
-      
-      lastFetchedTime.current = roundedTime;
-      setAnalysis(prev => ({ ...prev, isLoading: true }));
-      
-      try {
-        const liveCommentaryResult = await getLiveCommentary({
+      } else {
+        const result: AnalogyOutput = await generateAnalogy({
           videoId,
           timestamp,
-          windowSize: 5.0,
         });
         
-        if (liveCommentaryResult.commentary && !liveCommentaryResult.skipped) {
-          setAnalysis(prev => ({
-            ...prev,
-            commentary: liveCommentaryResult.commentary || prev.commentary,
-            isLoading: false,
-          }));
-          
-          try {
-            const nflAnalogy = await generateAnalogyFromText(liveCommentaryResult.commentary);
-            setAnalysis(prev => ({
-              ...prev,
-              nflAnalogy,
-            }));
-          } catch (error) {
-            console.error('Error generating NFL analogy from live commentary:', error);
-          }
-        } else if (captions.length === 0) {
-          const result: AnalogyOutput = await generateAnalogy({
-            videoId,
-            timestamp,
-          });
-          
-          setAnalysis(prev => ({
-            ...prev,
-            commentary: result.originalCommentary,
-            nflAnalogy: result.nflAnalogy,
-            fieldDiagram: result.fieldDiagram,
-            isLoading: false,
-            timestamp: result.timestamp,
-          }));
-        } else {
-          setAnalysis(prev => ({ ...prev, isLoading: false }));
-        }
-      } catch (error) {
-        console.error('Error fetching live commentary or analogy:', error);
-        setAnalysis(prev => ({ ...prev, isLoading: false }));
+        setAnalysis(prev => ({
+          ...prev,
+          commentary: result.originalCommentary,
+          nflAnalogy: result.nflAnalogy,
+          fieldDiagram: result.fieldDiagram,
+          isLoading: false,
+          timestamp: result.timestamp,
+        }));
       }
+    } catch (error) {
+      console.error('Error fetching live commentary or analogy:', error);
+      setAnalysis(prev => ({ ...prev, isLoading: false }));
     }
-  }, [videoId, captions, findCaptionAtTimestamp]);
+  }, [videoId]);
 
   const handleTimeChange = useCallback((time: number) => {
     setCurrentTime(time);

@@ -1,6 +1,7 @@
 
-import anthropic
+import google.generativeai as genai
 import os
+import asyncio
 from typing import Optional
 
 
@@ -8,35 +9,66 @@ class AnalogyGenerator:
     
     
     def __init__(self, api_key: Optional[str] = None):
-        self.api_key = api_key or os.getenv("ANTHROPIC_API_KEY")
-        self.client = None
+        self.api_key = api_key or os.getenv("GEMINI_API_KEY")
+        self.model_name = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
+        self.model = None
         
         if self.api_key:
             try:
-                self.client = anthropic.Anthropic(api_key=self.api_key)
+                genai.configure(api_key=self.api_key)
+
+                try:
+                    # Try model from .env first
+                    self.model = genai.GenerativeModel(self.model_name)
+                except Exception:
+                    self.model_name = "gemini-2.5-pro"
+                    self.model = genai.GenerativeModel(self.model_name)
+
+
+                print(f"[ANALOGY] Gemini initialized with {self.model_name}")
+
             except Exception as e:
-                print(f"Warning: Could not initialize Anthropic client: {e}")
-                self.client = None
+                print(f"[ANALOGY] Warning: Could not initialize Gemini: {e}")
+                self.model = None
+        else:
+            print("[ANALOGY] Gemini NOT initialized - GEMINI_API_KEY not set")
+
     
     async def generate(self, commentary: str) -> str:
         
-        if not self.client:
+        if not self.model:
             return self._generate_stub_analogy(commentary)
         
         try:
-            message = self.client.messages.create(
-                model="claude-3-haiku-20240307",
-                max_tokens=150,
-                messages=[{
-                    "role": "user",
-                    "content": f"You are a sports analyst who explains soccer plays using NFL analogies for American football fans. Convert this soccer commentary into an NFL analogy that American football fans would understand:\n\n\"{commentary}\"\n\nInstructions:\n- Use NFL terminology and concepts\n- Compare soccer positions to NFL positions (e.g., striker = receiver making a catch, midfielder = quarterback, defender = linebacker)\n- Keep it concise (2-3 sentences max)\n- Make it engaging and easy to understand\n- Focus on the tactical parallel between the sports\n\nRespond with ONLY the NFL analogy, no preamble."
-                }]
+            prompt = f"""You are a sports analyst who explains soccer plays using NFL analogies for American football fans. Convert this soccer commentary into an NFL analogy that American football fans would understand:
+
+"{commentary}"
+
+Instructions:
+- Use NFL terminology and concepts
+- Compare soccer positions to NFL positions (e.g., striker = receiver making a catch, midfielder = quarterback, defender = linebacker)
+- Keep it concise (2-3 sentences max)
+- Make it engaging and easy to understand
+- Focus on the tactical parallel between the sports
+
+Respond with ONLY the NFL analogy, no preamble."""
+            
+            loop = asyncio.get_event_loop()
+            response = await loop.run_in_executor(
+                None,
+                lambda: self.model.generate_content(
+                    prompt,
+                    generation_config={
+                        "temperature": 0.7,
+                        "max_output_tokens": 150,
+                    }
+                )
             )
             
-            return message.content[0].text.strip()
+            return response.text.strip()
             
         except Exception as e:
-            print(f"Analogy generation error: {e}")
+            print(f"[ANALOGY] Generation error: {e}")
             return self._generate_stub_analogy(commentary)
     
     def _generate_stub_analogy(self, commentary: str) -> str:

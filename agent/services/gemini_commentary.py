@@ -11,13 +11,14 @@ class GeminiCommentaryEnhancer:
     
     def __init__(self, api_key: Optional[str] = None):
         self.api_key = api_key or os.getenv("GEMINI_API_KEY")
+        self.model_name = os.getenv("GEMINI_MODEL", "gemini-1.5-flash-latest")
         self.model = None
         
         if self.api_key:
             try:
                 genai.configure(api_key=self.api_key)
-                self.model = genai.GenerativeModel('gemini-1.5-flash')
-                logger.info("[GEMINI COMMENTARY] Initialized with gemini-1.5-flash")
+                self.model = genai.GenerativeModel(self.model_name)
+                logger.info("[GEMINI COMMENTARY] Initialized with gemini-1.5-flash-latest")
             except Exception as e:
                 logger.error(f"[GEMINI COMMENTARY] Failed to initialize: {e}")
                 self.model = None

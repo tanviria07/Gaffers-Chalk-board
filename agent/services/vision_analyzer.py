@@ -1,5 +1,5 @@
 
-import anthropic
+import google.generativeai as genai
 import os
 import httpx
 import base64
@@ -14,18 +14,9 @@ class VisionAnalyzer:
     
     
     def __init__(self, api_key: Optional[str] = None, use_enhanced: bool = True):
-
-        self.azure_key = os.getenv("AZURE_OPENAI_KEY")
-        self.azure_endpoint = os.getenv("AZURE_OPENAI_ENDPOINT")
-
-        self.azure_deployment = os.getenv("AZURE_OPENAI_VISION_DEPLOYMENT", "gpt-4o-mini")
-        self.azure_api_version = os.getenv("AZURE_OPENAI_API_VERSION", "2024-07-01-preview")
+        self.api_key = api_key or os.getenv("GEMINI_API_KEY")
         
-
-        self.anthropic_key = api_key or os.getenv("ANTHROPIC_API_KEY")
-        
-        self.azure_client = None
-        self.claude_client = None
+        self.model = None
         self.provider = None
         
 
@@ -47,27 +38,18 @@ class VisionAnalyzer:
                 print(f"[VISION] Warning: Could not initialize Pose Estimator: {e}")
         
 
-        if self.azure_key and self.azure_endpoint:
+        if self.api_key:
             try:
-                if not self.azure_endpoint.endswith('/'):
-                    self.azure_endpoint += '/'
-                self.azure_vision_endpoint = f"{self.azure_endpoint}openai/deployments/{self.azure_deployment}/chat/completions?api-version={self.azure_api_version}"
-                self.azure_client = httpx.AsyncClient(timeout=30.0)
-                self.provider = "azure"
-                print(f"[VISION] Initialized Azure OpenAI Vision: {self.azure_vision_endpoint}")
+                genai.configure(api_key=self.api_key)
+                model_name = os.getenv("GEMINI_MODEL", "gemini-1.5-flash-latest")
+                self.model = genai.GenerativeModel(model_name)
+                self.provider = "gemini"
+                print(f"[VISION] Initialized Gemini Vision")
             except Exception as e:
-                print(f"[VISION] Warning: Could not initialize Azure OpenAI Vision: {e}")
+                print(f"[VISION] Warning: Could not initialize Gemini: {e}")
+                self.model = None
         
-
-        if not self.azure_client and self.anthropic_key:
-            try:
-                self.claude_client = anthropic.Anthropic(api_key=self.anthropic_key)
-                self.provider = "anthropic"
-                print(f"[VISION] Initialized Anthropic Claude Vision (fallback)")
-            except Exception as e:
-                print(f"[VISION] Warning: Could not initialize Anthropic client: {e}")
-        
-        if not self.azure_client and not self.claude_client:
+        if not self.model:
             print(f"[VISION] No vision AI provider available - will use stub responses")
     
     async def analyze(self, base64_image: str, context: Optional[str] = None) -> str:
@@ -80,12 +62,8 @@ class VisionAnalyzer:
         if self.use_enhanced and (self.object_detector or self.pose_estimator):
             return await self._analyze_enhanced(base64_image, context)
         
-
-        if self.azure_client:
-            return await self._analyze_with_azure(base64_image, context)
-        
-        if self.claude_client:
-            return await self._analyze_with_claude(base64_image, context)
+        if self.model:
+            return await self._analyze_with_gemini(base64_image, context)
         
         return self._generate_stub_commentary()
     
@@ -129,10 +107,8 @@ class VisionAnalyzer:
             )
             
 
-            if self.azure_client:
-                return await self._analyze_with_azure(base64_image, enhanced_context)
-            elif self.claude_client:
-                return await self._analyze_with_claude(base64_image, enhanced_context)
+            if self.model:
+                return await self._analyze_with_gemini(base64_image, enhanced_context)
             else:
 
                 return self._generate_commentary_from_detections(detection_result, pose_result)
@@ -142,10 +118,8 @@ class VisionAnalyzer:
             import traceback
             traceback.print_exc()
 
-            if self.azure_client:
-                return await self._analyze_with_azure(base64_image, context)
-            elif self.claude_client:
-                return await self._analyze_with_claude(base64_image, context)
+            if self.model:
+                return await self._analyze_with_gemini(base64_image, context)
             return self._generate_stub_commentary()
     
     def _build_enhanced_context(self, detection_result: Optional[Dict], pose_result: Optional[Dict], original_context: Optional[str]) -> str:
@@ -218,98 +192,7 @@ class VisionAnalyzer:
         
         return self._generate_stub_commentary()
     
-    async def _analyze_with_azure(self, base64_image: str, context: Optional[str] = None) -> str:
-        
-        try:
-
-
-            compressed = compress_image(base64_image, max_size=1024, quality=85)
-            
-            prompt = "Analyze this soccer frame. Describe the key action happening: player positions, ball location, and what's occurring. Be concise, under 20 words."
-            
-            if context:
-                prompt = f"CONTEXT: {context}\n\n{prompt}"
-            
-
-            max_retries = 2
-            retry_delay = 3.0
-            
-            for attempt in range(max_retries):
-                try:
-                    response = await self.azure_client.post(
-                        self.azure_vision_endpoint,
-                        headers={
-                            "api-key": self.azure_key,
-                            "Content-Type": "application/json"
-                        },
-                        json={
-                            "messages": [
-                                {
-                                    "role": "user",
-                                    "content": [
-                                        {
-                                            "type": "text",
-                                            "text": prompt
-                                        },
-                                        {
-                                            "type": "image_url",
-                                            "image_url": {
-                                                "url": f"data:image/jpeg;base64,{compressed}"
-                                            }
-                                        }
-                                    ]
-                                }
-                            ],
-                            "temperature": 0.7,
-                            "max_tokens": 300
-                        }
-                    )
-                    
-                    if response.status_code == 200:
-                        data = response.json()
-                        commentary = data.get("choices", [{}])[0].get("message", {}).get("content", "").strip()
-                        print(f"[VISION] ✓ Azure Vision analysis: {commentary[:60]}...")
-                        return commentary
-                    elif response.status_code == 429:
-
-                        if attempt < max_retries - 1:
-                            error_data = response.json() if response.text else {}
-                            retry_after = error_data.get('error', {}).get('message', '')
-                            
-
-                            import re
-                            retry_match = re.search(r'retry after (\d+) seconds?', retry_after.lower())
-                            if retry_match:
-
-                                retry_delay = float(retry_match.group(1)) + 3
-                            else:
-
-                                retry_delay = retry_delay * 5
-                            
-                            print(f"[VISION] Rate limit (429) - waiting {retry_delay:.1f}s before retry (attempt {attempt + 1}/{max_retries})...")
-                            await asyncio.sleep(retry_delay)
-                            continue
-                        else:
-                            print(f"[VISION] ✗ Azure Vision API rate limit - max retries reached")
-                            return self._generate_stub_commentary()
-                    else:
-                        print(f"[VISION] ✗ Azure Vision API error: {response.status_code} - {response.text}")
-                        return self._generate_stub_commentary()
-                except Exception as e:
-                    if attempt < max_retries - 1:
-                        print(f"[VISION] Request error (attempt {attempt + 1}/{max_retries}): {e}")
-                        await asyncio.sleep(retry_delay)
-                        continue
-                    else:
-                        raise
-            
-        except Exception as e:
-            print(f"[VISION] ✗ Azure Vision analysis error: {e}")
-            import traceback
-            traceback.print_exc()
-            return self._generate_stub_commentary()
-    
-    async def _analyze_with_claude(self, base64_image: str, context: Optional[str] = None) -> str:
+    async def _analyze_with_gemini(self, base64_image: str, context: Optional[str] = None) -> str:
         
         try:
             compressed = compress_image(base64_image, max_size=384, quality=50)
@@ -319,34 +202,24 @@ class VisionAnalyzer:
             if context:
                 prompt = f"CONTEXT: {context}\n\n{prompt}"
             
-            message = self.claude_client.messages.create(
-                model="claude-3-haiku-20240307",
-                max_tokens=300,
-                messages=[{
-                    "role": "user",
-                    "content": [
-                        {
-                            "type": "image",
-                            "source": {
-                                "type": "base64",
-                                "media_type": "image/jpeg",
-                                "data": compressed
-                            }
-                        },
-                        {
-                            "type": "text",
-                            "text": prompt
-                        }
-                    ]
-                }]
+            from PIL import Image
+            import io
+            
+            image_data = base64.b64decode(compressed)
+            image = Image.open(io.BytesIO(image_data))
+            
+            loop = asyncio.get_event_loop()
+            response = await loop.run_in_executor(
+                None,
+                lambda: self.model.generate_content([prompt, image])
             )
             
-            commentary = message.content[0].text.strip()
-            print(f"[VISION] ✓ Claude Vision analysis: {commentary[:60]}...")
+            commentary = response.text.strip()
+            print(f"[VISION] ✓ Gemini Vision analysis: {commentary[:60]}...")
             return commentary
             
         except Exception as e:
-            print(f"[VISION] ✗ Claude Vision analysis error: {e}")
+            print(f"[VISION] ✗ Gemini Vision analysis error: {e}")
             return self._generate_stub_commentary()
     
     async def extract_positions(self, base64_image: str) -> Dict[str, Any]:

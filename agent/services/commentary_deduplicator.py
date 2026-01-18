@@ -7,7 +7,7 @@ logger = logging.getLogger(__name__)
 
 class CommentaryDeduplicator:
     
-    def __init__(self, similarity_threshold: float = 0.85, max_history: int = 10):
+    def __init__(self, similarity_threshold: float = 0.92, max_history: int = 5):
         self.threshold = similarity_threshold
         self.max_history = max_history
         self.history: List[Tuple[str, float]] = []

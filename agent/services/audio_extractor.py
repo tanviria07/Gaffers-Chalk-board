@@ -6,8 +6,6 @@ import os
 import tempfile
 from typing import Optional, Dict, Any
 import logging
-import httpx
-import base64
 
 logger = logging.getLogger(__name__)
 
@@ -23,9 +21,12 @@ class AudioExtractor:
             'extract_flat': False,
         }
 
-        self.azure_speech_key = os.getenv("AZURE_SPEECH_KEY")
-        self.azure_speech_region = os.getenv("AZURE_SPEECH_REGION", "northcentralus")
-        self.azure_speech_endpoint = f"https://{self.azure_speech_region}.stt.speech.microsoft.com/speech/recognition/conversation/cognitiveservices/v1"
+        try:
+            from services.gemini_audio_transcriber import GeminiAudioTranscriber
+            self.gemini_transcriber = GeminiAudioTranscriber()
+        except Exception as e:
+            logger.warning(f"[AUDIO EXTRACTOR] Could not initialize Gemini transcriber: {e}")
+            self.gemini_transcriber = None
     
     def _get_video_url(self, video_url_or_id: str) -> str:
         
@@ -107,52 +108,18 @@ class AudioExtractor:
     
     async def transcribe_audio(self, audio_file_path: str, language: str = "en-US") -> Optional[str]:
         
-        if not self.azure_speech_key:
-            logger.warning("Azure Speech key not set, skipping audio transcription")
+        if not self.gemini_transcriber or not self.gemini_transcriber.model:
+            logger.warning("[AUDIO EXTRACTOR] Gemini transcriber not available, skipping audio transcription")
             return None
         
         try:
-
-            with open(audio_file_path, 'rb') as f:
-                audio_data = f.read()
-            
-
-            headers = {
-                'Ocp-Apim-Subscription-Key': self.azure_speech_key,
-                'Content-Type': 'audio/wav; codec=audio/pcm; samplerate=16000',
-            }
-            
-            params = {
-                'language': language,
-                'format': 'detailed',
-            }
-            
-            async with httpx.AsyncClient(timeout=30.0) as client:
-                response = await client.post(
-                    self.azure_speech_endpoint,
-                    headers=headers,
-                    params=params,
-                    content=audio_data
-                )
-                
-                if response.status_code == 200:
-                    result = response.json()
-                    if result.get('RecognitionStatus') == 'Success':
-                        transcript = result.get('DisplayText', '')
-                        logger.info(f"Audio transcribed: {transcript[:60]}...")
-                        return transcript
-                    else:
-                        logger.warning(f"Speech recognition failed: {result.get('RecognitionStatus')}")
-                        return None
-                else:
-                    logger.error(f"Azure Speech API error: {response.status_code} - {response.text}")
-                    return None
+            transcript = await self.gemini_transcriber.transcribe_audio_file(audio_file_path)
+            return transcript
                     
         except Exception as e:
-            logger.error(f"Audio transcription error: {e}")
+            logger.error(f"[AUDIO EXTRACTOR] Audio transcription error: {e}")
             return None
         finally:
-
             try:
                 if os.path.exists(audio_file_path):
                     os.unlink(audio_file_path)

@@ -3,6 +3,7 @@ import yt_dlp
 import asyncio
 from typing import Optional, List, Dict
 import logging
+import os
 
 logger = logging.getLogger(__name__)
 
@@ -19,6 +20,14 @@ class YouTubeCaptionExtractor:
             'writesubtitles': True,
             'writeautomaticsub': True,
         }
+        
+        self.audio_extractor = None
+        try:
+            from services.audio_extractor import AudioExtractor
+            self.audio_extractor = AudioExtractor()
+            logger.info("[CAPTION EXTRACTOR] Audio transcription fallback enabled (Gemini)")
+        except ImportError:
+            logger.warning("[CAPTION EXTRACTOR] AudioExtractor not available - audio transcription fallback disabled")
     
     def _get_cache_key(self, video_url_or_id: str) -> str:
         
@@ -27,13 +36,16 @@ class YouTubeCaptionExtractor:
 
         return f"https://www.youtube.com/watch?v={video_url_or_id}"
     
-    async def get_caption_at_timestamp(self, video_url_or_id: str, timestamp: float) -> Optional[str]:
+    async def get_caption_at_timestamp(self, video_url_or_id: str, timestamp: float, use_speech_fallback: bool = True) -> Optional[str]:
         
         try:
 
             captions = await self.fetch_captions(video_url_or_id)
             
             if not captions:
+                if use_speech_fallback and self.audio_extractor:
+                    logger.info(f"[CAPTION EXTRACTOR] No YouTube captions found, trying Gemini audio transcription at {timestamp}s...")
+                    return await self._get_caption_from_speech(video_url_or_id, timestamp)
                 return None
             
 
@@ -60,19 +72,61 @@ class YouTubeCaptionExtractor:
             if nearest:
                 return nearest.get('text', '').strip()
             
+            if use_speech_fallback and self.audio_extractor:
+                logger.info(f"[CAPTION EXTRACTOR] No caption at {timestamp}s, trying Gemini audio transcription...")
+                return await self._get_caption_from_speech(video_url_or_id, timestamp)
+            
             return None
             
         except Exception as e:
             logger.error(f"Error getting caption at timestamp: {e}")
+            if use_speech_fallback and self.audio_extractor:
+                try:
+                    return await self._get_caption_from_speech(video_url_or_id, timestamp)
+                except Exception as fallback_error:
+                    logger.error(f"Speech-to-text fallback also failed: {fallback_error}")
             return None
     
-    async def get_captions_in_range(self, video_url_or_id: str, start_time: float, end_time: float) -> List[Dict]:
+    async def _get_caption_from_speech(self, video_url_or_id: str, timestamp: float, window_size: float = 5.0) -> Optional[str]:
+        
+        try:
+            start_time = max(0.0, timestamp - window_size / 2)
+            end_time = timestamp + window_size / 2
+            
+            transcript = await self.audio_extractor.extract_and_transcribe(
+                video_url_or_id,
+                start_time,
+                end_time
+            )
+            
+            if transcript:
+                logger.info(f"[CAPTION EXTRACTOR] ✓ Gemini audio transcription: {transcript[:60]}...")
+                return transcript.strip()
+            else:
+                logger.warning(f"[CAPTION EXTRACTOR] Gemini audio transcription returned no transcript")
+                return None
+                
+        except Exception as e:
+            logger.error(f"[CAPTION EXTRACTOR] Gemini audio transcription error: {e}")
+            return None
+    
+    async def get_captions_in_range(self, video_url_or_id: str, start_time: float, end_time: float, use_speech_fallback: bool = True) -> List[Dict]:
         
         try:
 
             captions = await self.fetch_captions(video_url_or_id)
             
             if not captions:
+                if use_speech_fallback and self.audio_extractor:
+                    logger.info(f"[CAPTION EXTRACTOR] No YouTube captions found, generating Gemini audio transcription for range {start_time}s-{end_time}s...")
+                    speech_caption = await self._get_caption_from_speech(video_url_or_id, (start_time + end_time) / 2, window_size=end_time - start_time)
+                    if speech_caption:
+                        return [{
+                            'start': start_time,
+                            'duration': end_time - start_time,
+                            'text': speech_caption,
+                            'source': 'gemini-audio'
+                        }]
                 return []
             
 
@@ -85,6 +139,17 @@ class YouTubeCaptionExtractor:
 
                 if not (end < start_time or start > end_time):
                     captions_in_range.append(caption)
+            
+            if not captions_in_range and use_speech_fallback and self.audio_extractor:
+                logger.info(f"[CAPTION EXTRACTOR] No captions in range, trying Gemini audio transcription...")
+                speech_caption = await self._get_caption_from_speech(video_url_or_id, (start_time + end_time) / 2, window_size=end_time - start_time)
+                if speech_caption:
+                    return [{
+                        'start': start_time,
+                        'duration': end_time - start_time,
+                        'text': speech_caption,
+                        'source': 'gemini-audio'
+                    }]
             
             return captions_in_range
             
@@ -117,14 +182,16 @@ class YouTubeCaptionExtractor:
             if captions:
                 self.caption_cache[cache_key] = captions
                 logger.info(f"Cached {len(captions)} captions for {cache_key}")
+            else:
+                logger.info(f"No YouTube captions found for {cache_key} - speech-to-text fallback available: {self.audio_extractor is not None}")
             
             return captions or []
             
         except asyncio.TimeoutError:
-            logger.warning(f"Caption fetch timeout for {video_url_or_id}")
+            logger.warning(f"Caption fetch timeout for {video_url_or_id} - speech-to-text fallback available: {self.audio_extractor is not None}")
             return []
         except Exception as e:
-            logger.error(f"Error fetching captions: {e}")
+            logger.error(f"Error fetching captions: {e} - speech-to-text fallback available: {self.audio_extractor is not None}")
             return []
     
     def _fetch_captions_sync(self, video_url_or_id: str) -> List[Dict]:
@@ -163,7 +230,7 @@ class YouTubeCaptionExtractor:
                     caption_tracks = subtitles[first_lang]
                 
                 if not caption_tracks:
-                    logger.warning(f"No captions available for {video_url}")
+                    logger.warning(f"No captions available for {video_url} - speech-to-text fallback will be used if configured")
                     logger.warning(f"Available subtitles: {list(subtitles.keys()) if subtitles else 'none'}")
                     logger.warning(f"Available automatic_captions: {list(automatic_captions.keys()) if automatic_captions else 'none'}")
                     return []
