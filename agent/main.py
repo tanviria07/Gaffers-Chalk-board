@@ -28,9 +28,9 @@ logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 
-# Load .env file from the same directory as this script
+
 env_path = Path(__file__).parent / '.env'
-loaded = load_dotenv(env_path)  # <-- add this
+loaded = load_dotenv(env_path)  
 
 
 def _mask(key: str, show: int = 6):
